@@ -14,24 +14,24 @@ Rules: one stage at a time. At the end of each stage, run the tests, update the 
 - [x] 0.8 `docs/test-plan.md`, `docs/vm-plan.md`, `docs/resource-estimate.md`
 - [x] 0.9 Initial README
 - [x] 0.10 Translate all project documentation to English (user request)
-- [ ] 0.11 **User approval** (control point)
+- [x] 0.11 **User approval** (given when the user asked to start Stage 1)
 
 ## Stage 1: PDF ingestion
 
 Depends on: Stage 0 approved. Requirements: R1.1–R1.5, R2.3 (storage part), NFR2.
 
-- [ ] 1.1 Confirm environment with the user: install Ollama in the VM and download `nomic-embed-text` (~274 MB). State size and disk before downloading.
-- [ ] 1.2 Domain and errors: `app/core/models.py`, `app/core/errors.py`
-- [ ] 1.3 SQLite `MetadataStore`: schema, initial migration, category seeding, CRUD, errors, statistics
-- [ ] 1.4 Chroma `VectorStore`: collection per model, model/dimension validation, upsert, delete by document
-- [ ] 1.5 Ollama `EmbeddingClient` (httpx, batches, timeout) and a fake one for tests
-- [ ] 1.6 PDF extractor (PyMuPDF, page streaming, `no_text`/invalid detection)
-- [ ] 1.7 Chunking with overlap and page provenance
-- [ ] 1.8 Ingestion service: duplicate, change, incremental, reindex, remove (without deleting the file)
-- [ ] 1.9 CLI `python -m app.ingestion.cli` (`add`, `add-all`, `list`, `remove`, `reindex`, `stats`)
-- [ ] 1.10 Tests: valid/invalid/no-text synthetic PDFs, duplicate, change, removal, persistence after reopening, embeddings failure, recursive `add-all`
-- [ ] 1.11 Measure and document the effective `nomic-embed-text` window and the default chunk size
-- [ ] 1.12 Update README, run tests, report results
+- [ ] 1.1 Install Ollama in the VM and download `nomic-embed-text` (~274 MB), after stating size and disk. **Open: the VM has not been created yet; the user must confirm the VM disk location first.**
+- [x] 1.2 Domain and errors: `app/core/models.py`, `app/core/errors.py`
+- [x] 1.3 SQLite `MetadataStore`: schema, initial migration, category seeding, CRUD, errors, statistics
+- [x] 1.4 Chroma `VectorStore`: single collection with recorded embeddings identity, identity/dimension validation, upsert, delete and prune by document
+- [x] 1.5 Ollama `EmbeddingClient` (httpx, batches, timeout) and a fake one for tests
+- [x] 1.6 PDF extractor (PyMuPDF, page streaming, `no_text`/invalid detection)
+- [x] 1.7 Chunking with overlap and page provenance
+- [x] 1.8 Ingestion service: duplicate, change, incremental, reindex, remove (without deleting the file)
+- [x] 1.9 CLI `python -m app.ingestion.cli` (`add`, `add-all`, `list`, `remove`, `reindex`, `stats`)
+- [x] 1.10 Tests (fake embeddings; real-Ollama tests are opt-in and not yet run): valid/invalid/no-text synthetic PDFs, duplicate, change, removal, persistence after reopening, embeddings failure, recursive `add-all`
+- [ ] 1.11 Measure and document the effective `nomic-embed-text` window and the default chunk size. **Open: needs a real Ollama.**
+- [x] 1.12 Update README, run tests, report results
 - [ ] 1.13 **User approval**
 
 ## Stage 2: Semantic search
