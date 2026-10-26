@@ -1,7 +1,11 @@
-# Stage 0 runtime dependencies (configuration only).
-# Other libraries are added in the stage that requires them (see .kiro/specs/.../design.md):
-#   Stage 1: httpx, chromadb, pymupdf
+# Runtime dependencies. Libraries are added in the stage that requires them
+# (see .kiro/specs/.../design.md):
 #   Stage 3: fastapi, uvicorn
 #   Stage 4: HTML extraction library (to be decided)
 pydantic>=2.5,<3
 pydantic-settings>=2.2,<3
+# Stage 1
+httpx>=0.27,<1
+chromadb>=1.5,<2
+# PyMuPDF 2.x requires Python >= 3.11; the VM ships 3.10, so stay on 1.x.
+pymupdf>=1.26,<2

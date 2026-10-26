@@ -11,15 +11,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch, tmp_path):
-    """Isolate tests from the developer's environment and any real .env file."""
-    for name in list(__import__("os").environ):
-        if name.startswith("LKA_"):
-            monkeypatch.delenv(name)
-    monkeypatch.chdir(tmp_path)
-
-
 def test_defaults_are_safe_and_local():
     s = Settings(_env_file=None)
     assert s.api_host == "127.0.0.1"
@@ -79,6 +70,36 @@ def test_admin_token_is_not_exposed_in_repr(monkeypatch):
 def test_settings_creation_does_not_touch_filesystem(tmp_path):
     Settings(_env_file=None, data_dir=tmp_path / "not-created")
     assert not (tmp_path / "not-created").exists()
+
+
+def test_ingestion_defaults():
+    s = Settings(_env_file=None)
+    assert (s.chunk_size, s.chunk_overlap, s.embed_batch_size) == (1200, 200, 16)
+    assert s.embedding_document_prefix == "search_document: "
+    assert s.embedding_query_prefix == "search_query: "
+    assert s.categories_file.is_file()
+
+
+def test_ingestion_settings_from_env(monkeypatch):
+    monkeypatch.setenv("LKA_CHUNK_SIZE", "800")
+    monkeypatch.setenv("LKA_CHUNK_OVERLAP", "100")
+    monkeypatch.setenv("LKA_EMBED_BATCH_SIZE", "4")
+    monkeypatch.setenv("LKA_EMBEDDING_DOCUMENT_PREFIX", "")
+    s = load_settings()
+    assert (s.chunk_size, s.chunk_overlap, s.embed_batch_size) == (800, 100, 4)
+    assert s.embedding_document_prefix == ""
+
+
+@pytest.mark.parametrize("name,value", [
+    ("LKA_CHUNK_SIZE", "50"),
+    ("LKA_EMBED_BATCH_SIZE", "0"),
+    ("LKA_CHUNK_OVERLAP", "-1"),
+    ("LKA_CHUNK_OVERLAP", "600"),  # not smaller than half of the default chunk size
+])
+def test_invalid_ingestion_settings_are_rejected(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
 
 
 def test_categories_file_is_valid():
