@@ -64,7 +64,7 @@ Official installer: see [ollama.com/download](https://ollama.com/download/linux)
 
 ### 7. Operation
 - Start the API (from Stage 3) and open `http://127.0.0.1:8000/health` on the host.
-- Backup: stop the API, copy `LKA_DATA_DIR` (SQLite + Chroma) together with the embeddings model name. Script in `scripts/` in Stage 1.
+- Backup (planned, not yet exercised): no ingestion running, copy `LKA_DATA_DIR` (SQLite + Chroma) and note the embeddings model. A script is planned for a later stage.
 - Restore: copy back with the API stopped and check `stats`.
 
 ## Expected problems

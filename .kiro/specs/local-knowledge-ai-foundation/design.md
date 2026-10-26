@@ -21,21 +21,25 @@ Everything runs inside the Ubuntu VM: one Python process (API/CLI) and the Ollam
 |---|----------|--------------|-----------|
 | D1 | SQLite holds document metadata; Chroma holds vectors and scalar per-chunk metadata | Chroma only | Chroma accepts only scalar metadata and has limited filters. Lists (topics), statistics, errors and status fit SQL better. Meets "metadata in the database, independent of the physical directory". |
 | D2 | Category/topic/version filters are resolved in SQLite into a set of `document_id`s; Chroma receives `where document_id $in [...]` | Duplicate topics as strings in Chroma | Avoids stale duplicated metadata when the user corrects a category. For very large sets, filter directly by `source_type`/`document_id`. |
-| D3 | One Chroma collection per embeddings model, named `lka_<model-slug>`; model and dimension stored in collection metadata | Collection per category | Vectors from different models are not comparable. Categories and source types are filters, not collections. |
+| D3 | One fixed Chroma collection (`lka_chunks`) whose metadata records the embeddings identity (model + task prefixes). Opening it with a different identity, or writing vectors of another dimension, raises `EmbeddingModelMismatch`. *(Revised in Stage 1: a collection per model would silently start empty after a model switch instead of refusing.)* | Collection per model or per category | Vectors from different models are not comparable and the application must refuse mixed use. Categories and source types are filters, not collections. Switching models means a new index in a fresh data dir. |
 | D4 | `cosine` metric set at collection creation (`hnsw:space`) | Default L2 | More stable for text embeddings. Distance is a similarity measure, not a probability. The relevance threshold is calibrated in Stage 7. |
 | D5 | Categories are free slugs (`^[a-z0-9][a-z0-9-]{0,63}$`). `config/categories.json` only seeds the catalog in SQLite. | Enum in code | New categories without code changes. |
 | D6 | Ollama clients behind `EmbeddingClient` and `ChatClient` protocols | Call `httpx` directly | Enables mocks in tests and swapping model/runtime without touching RAG. |
-| D7 | Ollama HTTP client via `httpx` (added in Stage 1) | `ollama` library | One small dependency, timeout control. To be re-evaluated in Stage 1. |
+| D7 | Ollama HTTP client via `httpx` in `app/clients/` (Stage 1), calling `POST /api/embed` with `truncate=false` so over-long input fails instead of being cut silently | `ollama` library | One small dependency, timeout control. The client package is shared by ingestion, retrieval and rag, so it lives outside any of them. |
 | D8 | Character-based chunking with overlap, respecting page boundaries; unit configurable | Model tokenizer | Avoids a heavy dependency. Conservative default size, validated in Stage 7. |
 | D9 | Python 3.10+ | 3.12 | VM `ubuntu/jammy64` ships 3.10. |
 | D10 | Index data on the VM's local disk (`/home/vagrant/lka-data`), not a synced folder | Synced `./data` | Chroma/SQLite over `vboxsf` have locking and performance problems. Original books may stay in the synced folder (read-only use). |
 | D11 | Ollama installed manually inside the VM | Automatic provisioning | Avoids download and install without confirmation. The Vagrantfile installs only basic packages. |
+| D12 | `nomic-embed-text` task prefixes (`search_document: ` / `search_query: `) are configuration and part of the index identity | Hard-coded prefixes | The model is trained to expect them; other models use none. Changing them invalidates the index like changing the model. |
+| D13 | Duplicate/change detection is per document (SHA-256 of the file); a changed file is reindexed whole and replaces the old version found at the same path | Page-level diffing | Simple, idempotent, and enough for books. |
+| D14 | A failed ingestion deletes its partial chunks, stores the document with status `error` plus an error row, and is retried by running `add` again. Service-wide errors (`systemic`: Ollama down, model missing, embeddings mismatch) stop a batch. | Keep partial chunks | Partial chunks would be returned by search without a matching complete document. |
+| D15 | PyMuPDF is pinned `<2` | Latest | PyMuPDF 2.x requires Python 3.11; the VM ships 3.10. |
 
 ## 3. Data model
 
 ### 3.1 SQLite (`metadata.db`)
 
-- `documents`: `document_id` (PK), `title`, `source_type` (`pdf`, `web`, `code`, `note`), `category`, `source_uri`, `file_path`, `file_hash`, `version`, `language`, `status` (`indexed`, `no_text`, `error`, `removed`), `page_count`, `chunk_count`, `captured_at`, `updated_at`, `indexed_at`, `embedding_model`.
+- `documents`: `document_id` (PK), `title`, `source_type` (`pdf`, `web`, `code`, `note`), `category`, `source_uri`, `file_path`, `file_hash`, `version`, `language`, `status` (`indexed`, `no_text`, `error`; removing a document deletes its rows), `page_count`, `chunk_count`, `captured_at`, `updated_at` (file modification time for PDFs), `indexed_at`, `ingest_seconds`, `embedding_model` (the embeddings identity).
 - `document_topics`: (`document_id`, `topic`).
 - `categories`: `slug` (PK), `description`.
 - `ingestion_errors`: `id`, `document_id` or `source_uri`, `stage`, `message` (no document content), `created_at`.
@@ -71,7 +75,8 @@ class Provenance(BaseModel):
     line_end: int | None = None
 
 class Chunk(BaseModel):
-    chunk_id: str
+    chunk_id: str            # f"{document_id}:{chunk_index}"
+    chunk_index: int
     text: str
     content_hash: str
     provenance: Provenance
@@ -80,20 +85,24 @@ class SearchHit(BaseModel):
     chunk: Chunk
     distance: float          # cosine distance; NOT a probability
 
-# app/ingestion/base.py
+# app/ingestion/base.py   (Stage 1, implemented)
 class Extractor(Protocol):
-    def extract(self, source: Path | str) -> Iterator[Section]: ...   # streaming, with provenance
+    source_type: SourceType
+    def describe(self, path: Path) -> SourceInfo: ...        # title, page count
+    def extract(self, path: Path) -> Iterator[Section]: ...  # streaming, with provenance
 
-# app/ingestion/embeddings.py (client interface, Ollama implementation)
+# app/core/interfaces.py (protocol) + app/clients/ollama.py (implementation)   (Stage 1, implemented)
 class EmbeddingClient(Protocol):
-    model: str
-    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
+    identity: str   # model + task prefixes; part of the index identity
+    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]: ...
+    def embed_query(self, text: str) -> list[float]: ...
 
 # app/storage/vector_store.py
 class VectorStore(Protocol):
-    def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]) -> None: ...
-    def query(self, vector: Sequence[float], k: int, document_ids: Sequence[str] | None) -> list[SearchHit]: ...
-    def delete_document(self, document_id: str) -> int: ...
+    def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]) -> None: ...   # Stage 1
+    def delete_document(self, document_id: str) -> int: ...                                      # Stage 1
+    def prune_document(self, document_id: str, keep_count: int) -> int: ...                      # Stage 1
+    def query(self, vector: Sequence[float], k: int, document_ids: Sequence[str] | None) -> list[SearchHit]: ...  # Stage 2
 
 # app/storage/metadata_store.py
 class MetadataStore(Protocol):
@@ -124,8 +133,8 @@ The sketches above define the boundaries. Final signatures are fixed in each sta
 2. Open with PyMuPDF and iterate pages one at a time. If no page has text, status `no_text`.
 3. Chunk by page/window with overlap, preserving `page_start`/`page_end`.
 4. Embeddings in small batches (`LKA_EMBED_BATCH_SIZE`). Write to Chroma after each batch.
-5. Update SQLite at the end (`indexed`), or record the error and clean up partial chunks.
-6. Remove = delete chunks and record. The original file is never touched.
+5. On success: prune stale chunks left by a previous version of the same document, update SQLite (`indexed`), and remove older documents found at the same path. On failure (including Ctrl-C): delete partial chunks, store the document as `error` and record the error (messages never include document text).
+6. Remove = delete chunks, then the SQLite record. The original file is never touched.
 
 ### 5.2 Search (Stage 2)
 1. Check embeddings-model compatibility with the collection (R2.3).
@@ -182,7 +191,8 @@ See `docs/resource-estimate.md`.
 |------|--------|------------|
 | `qwen2.5:3b` hallucinates or ignores instructions in Portuguese | Inaccurate answers | Citations generated from metadata, "no evidence" fallback, Stage 7 evaluation, larger model by configuration. |
 | `nomic-embed-text` was trained mostly on English | Lower recall in Portuguese | Measure in Stage 7. A multilingual alternative only with approval and reindexing. |
-| `nomic-embed-text` context window (effective size to be confirmed in Stage 1) | Silent truncation | Keep chunk size below the window and test it. |
+| `nomic-embed-text` context window (Ollama pages disagree: 2K vs 8K tokens; **still unmeasured**, needs a real Ollama) | Failed requests on long chunks | Default chunk is 1200 characters; `truncate=false` makes over-long input fail loudly instead of being cut silently. |
+| PyMuPDF repairs truncated PDFs and may return less text without an error | Silently incomplete book | Documented limitation; compare page text counts in Stage 7 if it matters. |
 | Generation latency on CPU (3B) | Answers take tens of seconds | Bounded context, timeouts, streaming possible later. |
 | VM RAM (8 GB) on a 16 GB host | Swap/freezes | See estimate; reduce to a smaller model or smaller context. |
 | Scanned PDF without text | Book not queryable | Marked `no_text`. OCR is a later stage. |

@@ -5,6 +5,7 @@ Modules are created when the stage that uses them is approved. Do not create emp
 ```
 app/
   core/        configuration, logging, common errors, domain models (no external I/O)
+  clients/     external service clients (Ollama) implementing the interfaces in core
   storage/     SQLite (metadata) and ChromaDB (vectors) behind interfaces
   ingestion/   pdf/, web/, code/ + shared chunking and CLI
   retrieval/   semantic search, filters, deduplication, CLI
@@ -25,7 +26,7 @@ tests/         mirrors the structure of app/
 - `retrieval` queries `storage` and the embeddings client; it does not generate text.
 - `rag` uses `retrieval` and the chat client; it does not access Chroma directly.
 - `api` and the CLIs are thin layers over services; no business logic in routes.
-- External clients (Ollama) sit behind a small interface so they can be mocked and models swapped without touching RAG logic.
+- External clients (Ollama) sit behind a small interface (protocol in `core`, implementation in `clients`) so they can be mocked and models swapped without touching RAG logic. `clients` imports only from `core`.
 - Sources (PDF, web, code) implement a common "extractor" contract that returns text + provenance; chunking and persistence are shared.
 
 ## Conventions
