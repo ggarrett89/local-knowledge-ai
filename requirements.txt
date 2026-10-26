@@ -1,0 +1,7 @@
+# Stage 0 runtime dependencies (configuration only).
+# Other libraries are added in the stage that requires them (see .kiro/specs/.../design.md):
+#   Stage 1: httpx, chromadb, pymupdf
+#   Stage 3: fastapi, uvicorn
+#   Stage 4: HTML extraction library (to be decided)
+pydantic>=2.5,<3
+pydantic-settings>=2.2,<3

@@ -1,0 +1,16 @@
+{
+  "_comment": "Initial categories (suggestions only). Any valid [a-z0-9-] slug can be used as a category without changing code.",
+  "categories": [
+    {"slug": "programming", "description": "Languages, algorithms, design patterns"},
+    {"slug": "software-architecture", "description": "Software architecture and microservices"},
+    {"slug": "distributed-systems", "description": "Distributed systems and event-driven architecture"},
+    {"slug": "devops-sre", "description": "DevOps, Platform Engineering, SRE, CI/CD, GitOps, observability"},
+    {"slug": "cloud", "description": "AWS, Azure and GCP"},
+    {"slug": "containers-kubernetes", "description": "Docker, Kubernetes, OpenShift, Helm"},
+    {"slug": "iac-automation", "description": "Terraform, Terragrunt, Ansible"},
+    {"slug": "databases-messaging", "description": "PostgreSQL, MySQL, Kafka and messaging"},
+    {"slug": "security", "description": "Application, infrastructure and cloud security"},
+    {"slug": "ai-ml", "description": "LLMs, embeddings, RAG, agents, MLOps"},
+    {"slug": "general", "description": "No specific category"}
+  ]
+}

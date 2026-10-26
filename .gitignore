@@ -1,0 +1,34 @@
+# Private data and indexes (never version)
+/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Secrets and environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Vagrant / VirtualBox
+.vagrant/
+*.box
+*.log
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

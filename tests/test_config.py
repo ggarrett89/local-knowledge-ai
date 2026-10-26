@@ -1,0 +1,91 @@
+import json
+import re
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from app.core.config import Settings, load_settings
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch, tmp_path):
+    """Isolate tests from the developer's environment and any real .env file."""
+    for name in list(__import__("os").environ):
+        if name.startswith("LKA_"):
+            monkeypatch.delenv(name)
+    monkeypatch.chdir(tmp_path)
+
+
+def test_defaults_are_safe_and_local():
+    s = Settings(_env_file=None)
+    assert s.api_host == "127.0.0.1"
+    assert s.api_port == 8000
+    assert s.ollama_base_url == "http://127.0.0.1:11434"
+    assert s.chat_model == "qwen2.5:3b"
+    assert s.embedding_model == "nomic-embed-text"
+    assert s.admin_token is None
+
+
+def test_data_paths_derive_from_data_dir():
+    s = Settings(_env_file=None, data_dir=Path("/tmp/lka"))
+    assert s.documents_dir == Path("/tmp/lka/documents")
+    assert s.vector_db_dir == Path("/tmp/lka/vector_db")
+    assert s.cache_dir == Path("/tmp/lka/cache")
+    assert s.metadata_db_path == Path("/tmp/lka/metadata.db")
+
+
+def test_env_variables_override_defaults(monkeypatch):
+    monkeypatch.setenv("LKA_DATA_DIR", "/srv/lka")
+    monkeypatch.setenv("LKA_VECTOR_DB_DIR", "/mnt/fast/vectors")
+    monkeypatch.setenv("LKA_CHAT_MODEL", "qwen2.5:1.5b")
+    monkeypatch.setenv("LKA_API_PORT", "9001")
+    s = load_settings()
+    assert s.documents_dir == Path("/srv/lka/documents")
+    assert s.vector_db_dir == Path("/mnt/fast/vectors")
+    assert s.chat_model == "qwen2.5:1.5b"
+    assert s.api_port == 9001
+
+
+def test_env_file_is_read(tmp_path):
+    env_file = tmp_path / "custom.env"
+    env_file.write_text("LKA_EMBEDDING_MODEL=other-embed\n", encoding="utf-8")
+    s = Settings(_env_file=env_file)
+    assert s.embedding_model == "other-embed"
+
+
+@pytest.mark.parametrize("name,value", [
+    ("LKA_API_PORT", "0"),
+    ("LKA_API_PORT", "70000"),
+    ("LKA_OLLAMA_TIMEOUT_SECONDS", "0"),
+    ("LKA_CHAT_MODEL", ""),
+])
+def test_invalid_values_are_rejected(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_admin_token_is_not_exposed_in_repr(monkeypatch):
+    monkeypatch.setenv("LKA_ADMIN_TOKEN", "super-secret-value")
+    s = Settings(_env_file=None)
+    assert "super-secret-value" not in repr(s)
+    assert s.admin_token.get_secret_value() == "super-secret-value"
+
+
+def test_settings_creation_does_not_touch_filesystem(tmp_path):
+    Settings(_env_file=None, data_dir=tmp_path / "not-created")
+    assert not (tmp_path / "not-created").exists()
+
+
+def test_categories_file_is_valid():
+    data = json.loads((REPO_ROOT / "config" / "categories.json").read_text(encoding="utf-8"))
+    slugs = [c["slug"] for c in data["categories"]]
+    assert len(slugs) == len(set(slugs))
+    assert all(SLUG_RE.match(s) for s in slugs)
+    assert {"programming", "software-architecture", "distributed-systems", "devops-sre",
+            "cloud", "containers-kubernetes", "iac-automation", "databases-messaging",
+            "security", "ai-ml", "general"} == set(slugs)
