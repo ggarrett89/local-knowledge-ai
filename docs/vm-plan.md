@@ -1,6 +1,6 @@
 # VM execution plan
 
-> Status: the VM **has been created** (`vagrant up`, step 3) and checked. Steps 4 to 7 (Python environment, Ollama, models, operation) have **not** been run yet; they will be validated as they are executed.
+> Status: steps 1 to 6 have been run in the VM (see the README for the observed results). Step 7 (operation: API, backup, restore) is not available yet.
 
 ## Overview
 An Ubuntu 22.04 VM (`ubuntu/jammy64`), 4 CPUs and 8 GB RAM, runs Ollama, the API and the CLIs. Original PDFs may stay in a host folder synced with the VM (the application only reads them); the index lives on the VM's local disk.
@@ -42,7 +42,7 @@ vagrant ssh
 ```
 To use less memory: `LKA_VM_MEMORY_MB=6144 vagrant up`. Stop: `vagrant halt`. Remove the VM (destructive; deletes the VM's index): `vagrant destroy`.
 
-### 4. Prepare Python (inside the VM)
+### 4. Prepare Python (inside the VM) — done
 ```bash
 python3 -m venv ~/venv
 . ~/venv/bin/activate
@@ -53,10 +53,10 @@ pytest
 ```
 Note: the VM's Python is 3.10, which is why the code stays compatible with 3.10+.
 
-### 5. Install Ollama (manual, Stage 1)
-Official installer: see [ollama.com/download](https://ollama.com/download/linux) and review the script before running it. This downloads the runtime (~1–2 GB).
+### 5. Install Ollama (manual, Stage 1) — done
+Official installer: see [ollama.com/download](https://ollama.com/download/linux) and review the script before running it. It downloads the runtime (2.3 GB installed) and needs the `zstd` package (`sudo apt-get install zstd`). It creates an `ollama` system user and a systemd service that listens on `127.0.0.1:11434` only.
 
-### 6. Download models (manual, with confirmation)
+### 6. Download models (manual, with confirmation) — `nomic-embed-text` done
 | When | Command | Size | Purpose |
 |------|---------|------|---------|
 | Stage 1 | `ollama pull nomic-embed-text` | ~274 MB | embeddings for indexing and querying |
@@ -66,6 +66,24 @@ Official installer: see [ollama.com/download](https://ollama.com/download/linux)
 - Start the API (from Stage 3) and open `http://127.0.0.1:8000/health` on the host.
 - Backup (planned, not yet exercised): no ingestion running, copy `LKA_DATA_DIR` (SQLite + Chroma) and note the embeddings model. A script is planned for a later stage.
 - Restore: copy back with the API stopped and check `stats`.
+
+## Appliance export (OVA)
+A snapshot of the VM after Stage 1 was exported with `VBoxManage export` while the VM was halted. The synthetic test index, sample files, APT lists and pip cache were removed first. Ollama and `nomic-embed-text` were kept.
+
+| Item | Value |
+|------|-------|
+| File | `~/vm-appliances/local-knowledge-ai-stage1-<date>.ova` (plus a `.sha256` file) |
+| Size | 3.2 GB (disks are stored as compressed stream-optimized VMDK; the virtual disk is 40 GB) |
+| Contents | Ubuntu 22.04, Python 3.10 with the project's virtualenv (`~/venv`), Ollama 0.40.11, `nomic-embed-text`. No project files, no index, no books |
+| Verified | the three SHA-1 entries of the OVA manifest match the archive contents; `VBoxManage import --dry-run` lists 4 CPUs and both disks |
+| **Not verified** | an actual import and boot of the appliance |
+
+Caveats:
+- The appliance contains the default Vagrant SSH key of the `ubuntu/jammy64` box. Keep it local; do not share or publish it.
+- The OVF also records the project's shared-folder path on the host and the two port forwards. On another machine, remove the shared folder from the imported VM settings, then get the code with `git clone` inside the VM instead.
+- Compression was not tuned: zero-filling free space was skipped on purpose, because it would have grown the dynamic disk by tens of GB on a host with limited free space.
+
+Import (not yet exercised): `VBoxManage import local-knowledge-ai-stage1-<date>.ova`. Restore a backup of `LKA_DATA_DIR` afterwards if you have one.
 
 ## Expected problems
 | Symptom | Likely cause | Action |
