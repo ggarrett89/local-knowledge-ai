@@ -67,6 +67,24 @@ Official installer: see [ollama.com/download](https://ollama.com/download/linux)
 - Backup (planned, not yet exercised): no ingestion running, copy `LKA_DATA_DIR` (SQLite + Chroma) and note the embeddings model. A script is planned for a later stage.
 - Restore: copy back with the API stopped and check `stats`.
 
+## Appliance export (OVA)
+A snapshot of the VM after Stage 1 was exported with `VBoxManage export` while the VM was halted. The synthetic test index, sample files, APT lists and pip cache were removed first. Ollama and `nomic-embed-text` were kept.
+
+| Item | Value |
+|------|-------|
+| File | `~/vm-appliances/local-knowledge-ai-stage1-<date>.ova` (plus a `.sha256` file) |
+| Size | 3.2 GB (disks are stored as compressed stream-optimized VMDK; the virtual disk is 40 GB) |
+| Contents | Ubuntu 22.04, Python 3.10 with the project's virtualenv (`~/venv`), Ollama 0.40.11, `nomic-embed-text`. No project files, no index, no books |
+| Verified | the three SHA-1 entries of the OVA manifest match the archive contents; `VBoxManage import --dry-run` lists 4 CPUs and both disks |
+| **Not verified** | an actual import and boot of the appliance |
+
+Caveats:
+- The appliance contains the default Vagrant SSH key of the `ubuntu/jammy64` box. Keep it local; do not share or publish it.
+- The OVF also records the project's shared-folder path on the host and the two port forwards. On another machine, remove the shared folder from the imported VM settings, then get the code with `git clone` inside the VM instead.
+- Compression was not tuned: zero-filling free space was skipped on purpose, because it would have grown the dynamic disk by tens of GB on a host with limited free space.
+
+Import (not yet exercised): `VBoxManage import local-knowledge-ai-stage1-<date>.ova`. Restore a backup of `LKA_DATA_DIR` afterwards if you have one.
+
 ## Expected problems
 | Symptom | Likely cause | Action |
 |---------|--------------|--------|

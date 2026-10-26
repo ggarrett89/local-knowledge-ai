@@ -93,7 +93,7 @@ pytest -m integration                                   # 2 passed against the r
 ```
 Ollama 0.40.11 was installed in the VM with the official installer (reviewed first; it also needs the `zstd` APT package, installed with `sudo apt-get install zstd`). It runs as a systemd service, CPU-only, and listens on `127.0.0.1:11434` inside the VM only; the port is not reachable from the host.
 
-Full plan, decisions and expected problems in [`docs/vm-plan.md`](docs/vm-plan.md). Stop the VM with `vagrant halt` when you are not using it; it reserves 8 GB of the host's RAM while running.
+Full plan, decisions, the exported appliance (OVA) and expected problems in [`docs/vm-plan.md`](docs/vm-plan.md). Stop the VM with `vagrant halt` when you are not using it; it reserves 8 GB of the host's RAM while running.
 
 Downloads are never automatic. Install the embeddings model yourself, inside the VM, after checking size and disk space:
 
