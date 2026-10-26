@@ -37,7 +37,7 @@ Details in [`.kiro/specs/local-knowledge-ai-foundation/design.md`](.kiro/specs/l
 ## Requirements
 - Host: 16 GB RAM, VirtualBox and Vagrant. No GPU. See [`docs/resource-estimate.md`](docs/resource-estimate.md).
 - Python 3.10+ (the VM uses 3.10; development on the host used 3.12).
-- Disk: plan for ~10–14 GB for the VM, Ollama and the two models.
+- Disk: plan for ~10–14 GB for the VM, Ollama and the two models (the bare VM measured ~2.5 GB on the host).
 
 ## Set up the development environment (host)
 Commands run successfully (Ubuntu, Python 3.12.3):
@@ -77,11 +77,14 @@ Copy `.env.example` to `.env` and adjust. All variables use the `LKA_` prefix:
 > **Warning:** the embeddings model **and its prefixes** define the index. The index records them, and the application refuses to index or query when they differ. To switch models, build a new index in a fresh `LKA_DATA_DIR` and add your documents again.
 
 ## VM
-Configuration validation, run successfully:
+Run successfully:
 ```bash
 vagrant validate        # "Vagrantfile validated successfully."
+vagrant up              # first run created the VM and installed basic APT packages
 ```
-**Not run so far:** `vagrant up`, the Ollama installation and model downloads. Full plan, decisions and expected problems in [`docs/vm-plan.md`](docs/vm-plan.md).
+Observed inside the VM after `vagrant up`: Ubuntu 22.04, Python 3.10.12, 4 CPUs, ~7.9 GB RAM visible, 39 GB virtual disk (1.9 GB used), `/vagrant` mounted with the project, `/home/vagrant/lka-data` created, no Ollama. On the host the VM uses about 2.5 GB of disk in VirtualBox's default machine folder, and the API port is forwarded only to `127.0.0.1:8000`.
+
+**Not run so far:** the Ollama installation, model downloads, and `pip install` / `pytest` inside the VM (so Python 3.10 compatibility is still untested). Full plan, decisions and expected problems in [`docs/vm-plan.md`](docs/vm-plan.md). Stop the VM with `vagrant halt` when you are not using it; it reserves 8 GB of the host's RAM while running.
 
 Downloads are never automatic. Install the embeddings model yourself, inside the VM, after checking size and disk space:
 

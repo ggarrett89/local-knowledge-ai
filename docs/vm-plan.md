@@ -1,6 +1,6 @@
 # VM execution plan
 
-> Status: **planned**. None of the commands on this page involving the VM or Ollama was run in Stage 0. They will be validated in the stages indicated.
+> Status: the VM **has been created** (`vagrant up`, step 3) and checked. Steps 4 to 7 (Python environment, Ollama, models, operation) have **not** been run yet; they will be validated as they are executed.
 
 ## Overview
 An Ubuntu 22.04 VM (`ubuntu/jammy64`), 4 CPUs and 8 GB RAM, runs Ollama, the API and the CLIs. Original PDFs may stay in a host folder synced with the VM (the application only reads them); the index lives on the VM's local disk.
@@ -35,7 +35,7 @@ vagrant box list          # confirm ubuntu/jammy64
 vagrant validate
 ```
 
-### 3. Start the VM (first run installs basic APT packages)
+### 3. Start the VM (first run installs basic APT packages) — done
 ```bash
 vagrant up
 vagrant ssh
