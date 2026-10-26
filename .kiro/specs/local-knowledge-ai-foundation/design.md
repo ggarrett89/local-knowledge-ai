@@ -191,7 +191,7 @@ See `docs/resource-estimate.md`.
 |------|--------|------------|
 | `qwen2.5:3b` hallucinates or ignores instructions in Portuguese | Inaccurate answers | Citations generated from metadata, "no evidence" fallback, Stage 7 evaluation, larger model by configuration. |
 | `nomic-embed-text` was trained mostly on English | Lower recall in Portuguese | Measure in Stage 7. A multilingual alternative only with approval and reindexing. |
-| `nomic-embed-text` context window (Ollama pages disagree: 2K vs 8K tokens; **still unmeasured**, needs a real Ollama) | Failed requests on long chunks | Default chunk is 1200 characters; `truncate=false` makes over-long input fail loudly instead of being cut silently. |
+| `nomic-embed-text` context window: measured 2048 tokens. Prose worked up to 8,000 characters, dense numeric text failed at 3,000 | Failed requests on long or numeric-heavy chunks | Default chunk is 1200 characters; `truncate=false` makes over-long input fail loudly instead of being cut silently. Re-run `scripts/probe_embedding_context.py` before raising the chunk size. |
 | PyMuPDF repairs truncated PDFs and may return less text without an error | Silently incomplete book | Documented limitation; compare page text counts in Stage 7 if it matters. |
 | Generation latency on CPU (3B) | Answers take tens of seconds | Bounded context, timeouts, streaming possible later. |
 | VM RAM (8 GB) on a 16 GB host | Swap/freezes | See estimate; reduce to a smaller model or smaller context. |

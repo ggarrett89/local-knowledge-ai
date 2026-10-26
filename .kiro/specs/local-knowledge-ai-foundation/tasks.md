@@ -20,7 +20,7 @@ Rules: one stage at a time. At the end of each stage, run the tests, update the 
 
 Depends on: Stage 0 approved. Requirements: R1.1–R1.5, R2.3 (storage part), NFR2.
 
-- [ ] 1.1 Install Ollama in the VM and download `nomic-embed-text` (~274 MB), after stating size and disk. **Open: the VM has not been created yet; the user must confirm the VM disk location first.**
+- [x] 1.1 Install Ollama in the VM and download `nomic-embed-text` (~274 MB), after stating size and disk. Done in the VM with user confirmation.
 - [x] 1.2 Domain and errors: `app/core/models.py`, `app/core/errors.py`
 - [x] 1.3 SQLite `MetadataStore`: schema, initial migration, category seeding, CRUD, errors, statistics
 - [x] 1.4 Chroma `VectorStore`: single collection with recorded embeddings identity, identity/dimension validation, upsert, delete and prune by document
@@ -29,8 +29,8 @@ Depends on: Stage 0 approved. Requirements: R1.1–R1.5, R2.3 (storage part), NF
 - [x] 1.7 Chunking with overlap and page provenance
 - [x] 1.8 Ingestion service: duplicate, change, incremental, reindex, remove (without deleting the file)
 - [x] 1.9 CLI `python -m app.ingestion.cli` (`add`, `add-all`, `list`, `remove`, `reindex`, `stats`)
-- [x] 1.10 Tests (fake embeddings; real-Ollama tests are opt-in and not yet run): valid/invalid/no-text synthetic PDFs, duplicate, change, removal, persistence after reopening, embeddings failure, recursive `add-all`
-- [ ] 1.11 Measure and document the effective `nomic-embed-text` window and the default chunk size. **Open: needs a real Ollama.**
+- [x] 1.10 Tests (fake embeddings by default; the 2 opt-in real-Ollama tests also passed in the VM): valid/invalid/no-text synthetic PDFs, duplicate, change, removal, persistence after reopening, embeddings failure, recursive `add-all`
+- [x] 1.11 Measure and document the effective `nomic-embed-text` window and the default chunk size (2048-token limit; 1,200-character default kept; see README "Measured results").
 - [x] 1.12 Update README, run tests, report results
 - [ ] 1.13 **User approval**
 

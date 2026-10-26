@@ -1,6 +1,6 @@
 # Resource estimate
 
-Model sizes come from the Ollama pages ([qwen2.5 tags](https://ollama.com/library/qwen2.5/tags), [nomic-embed-text](https://ollama.com/library/nomic-embed-text)). All other figures are **planning estimates, not measurements**. Stage 7 replaces them with measurements.
+Model sizes come from the Ollama pages ([qwen2.5 tags](https://ollama.com/library/qwen2.5/tags), [nomic-embed-text](https://ollama.com/library/nomic-embed-text)). Figures in the "Measured in Stage 1" section were measured in the VM with synthetic text; all other figures are **planning estimates**. Stage 7 replaces the estimates with systematic measurements.
 
 ## Host environment inspected (2026-10-26)
 - 12 logical CPUs, 15 GiB RAM (about 10 GiB available at inspection time).
@@ -16,7 +16,7 @@ Model sizes come from the Ollama pages ([qwen2.5 tags](https://ollama.com/librar
 | Ollama binary and runtime | ~1–2 GB | manual install |
 | `qwen2.5:3b` (chat) | 1.9 GB | Stage 3 |
 | `nomic-embed-text` (embeddings) | 274 MB | Stage 1 |
-| Index (Chroma + SQLite) | ~1–3 MB per 300-page book (estimate: ~600 chunks × 768 floats × 4 B ≈ 1.8 MB, plus HNSW overhead) | measure in Stage 1 |
+| Index (Chroma + SQLite) | ~17 KB per chunk measured, so ~17 MB for a book of ~1,000 chunks (the earlier 1–3 MB estimate ignored stored text, metadata and index overhead) | see measured section |
 | Original PDFs | depends on the library | kept outside Git |
 | **Initial total** | **~10–14 GB** | fits in the 39 GB free, with a reduced margin |
 
@@ -43,8 +43,24 @@ With the VM at 8 GB, about 7–8 GB remains for the host. The inspection showed 
 ## CPU and time (no GPU)
 Orders of magnitude, to be measured in Stage 7:
 - Generation with a 3B model on 4 CPUs: a few tokens per second (answers take tens of seconds).
-- Embeddings with `nomic-embed-text` on CPU: hundreds of milliseconds per chunk. A 300-page book may take from minutes to tens of minutes to index.
+- Embeddings with `nomic-embed-text` on CPU: about 1 s per chunk measured (the earlier "hundreds of milliseconds" estimate was optimistic). A 300-page book (~1,000 chunks) is roughly 15–20 minutes by extrapolation.
 - Ingestion runs in small batches and can be interrupted and resumed (incremental).
 
 ## Network
 Downloads happen only with confirmation: the VM's APT packages, the Ollama installer and the two models. Stage 4 makes outbound traffic only to the sources you register.
+
+## Measured in Stage 1
+VM: Ubuntu 22.04, Python 3.10.12, 4 CPUs, 8 GB, no GPU, Ollama 0.40.11, `nomic-embed-text`. Synthetic PDFs.
+
+| Measurement | Result |
+|-------------|--------|
+| VM RAM, idle with the embeddings model installed | 520 MB used |
+| VM RAM, peak during a 20-page ingestion | 587 MB (Ollama embeddings runner ~305 MB, Ollama server ~37 MB, Python ~139 MB) |
+| Python peak RSS, 100-page ingestion | 151 MB |
+| Embedding time | 297 s for 300 chunks from 100 pages (~1 s per chunk) |
+| Index size | 5.2 MB for 315 chunks, plus 64 KB SQLite |
+| Ollama runtime on disk | 2.3 GB |
+| Python virtualenv in the VM | 574 MB |
+| Bare VM on the host | ~2.5 GB right after `vagrant up` |
+
+The 4–5.5 GB RAM peak in the table above includes the 3B chat model, which is not installed yet; ingestion alone used well under 1 GB. The chat model's real footprint will be measured in Stage 3.
