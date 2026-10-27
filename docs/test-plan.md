@@ -60,8 +60,12 @@ Everything below runs with a deterministic fake embeddings client, real SQLite a
 
 Mutation check done once by hand: disabling the cleanup of partial chunks, and disabling the pruning of stale chunks, each made the corresponding test fail.
 
+**Also run in the VM (Python 3.10.12)**
+- Default suite: 141 passed, 2 deselected.
+- `pytest -m integration` against the real Ollama and `nomic-embed-text`: 2 passed (embedding dimension consistency, end-to-end ingestion of a synthetic PDF).
+- Manual CLI scenarios (import, unchanged, identity mismatch, missing model, Ollama stopped, retry, reindex, remove) are recorded in the README with their output. They are not automated against a real Ollama.
+
 **Not covered / not run**
-- `tests/integration/` (real Ollama, `pytest -m integration`): requires the VM, Ollama and `nomic-embed-text`. Not run.
-- Python 3.10: not run (host has 3.12 only).
-- Ingestion time, memory and disk use: not measured (Stage 7).
+- Ingestion was exercised with one real text-based book (473 pages) and verified by hand against the PDF (README "One real book"); this is not automated, and no scanned, multi-column or heavily code-based book has been tried.
+- Time, memory and disk were measured once on synthetic text (README "Measured results"); the systematic benchmark is Stage 7.
 - Retrieval quality: no search exists yet (Stage 2).
