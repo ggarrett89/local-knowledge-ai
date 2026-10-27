@@ -32,19 +32,19 @@ Depends on: Stage 0 approved. Requirements: R1.1–R1.5, R2.3 (storage part), NF
 - [x] 1.10 Tests (fake embeddings by default; the 2 opt-in real-Ollama tests also passed in the VM): valid/invalid/no-text synthetic PDFs, duplicate, change, removal, persistence after reopening, embeddings failure, recursive `add-all`
 - [x] 1.11 Measure and document the effective `nomic-embed-text` window and the default chunk size (2048-token limit; 1,200-character default kept; see README "Measured results").
 - [x] 1.12 Update README, run tests, report results
-- [ ] 1.13 **User approval**
+- [x] 1.13 **User approval** (given when the user asked to start Stage 2)
 
 ## Stage 2: Semantic search
 
 Depends on: Stage 1. Requirements: R2.1–R2.4.
 
-- [ ] 2.1 `Retriever` with filters (document, category, topics), `k`, overfetch
-- [ ] 2.2 Configurable relevance threshold and deduplication
-- [ ] 2.3 Reference formatting from `Provenance`
-- [ ] 2.4 CLI `python -m app.retrieval.cli search`
-- [ ] 2.5 Document cosine distance and calibrate the threshold with a synthetic PT/EN corpus
-- [ ] 2.6 Tests: empty database, no results, filters, incompatible model, embeddings unavailable, page references
-- [ ] 2.7 Update README, run tests, report
+- [x] 2.1 `Retriever` with filters (document, category, topics, source type), `k`, overfetch
+- [x] 2.2 Configurable relevance threshold and deduplication (identical text and adjacent chunks)
+- [x] 2.3 Reference formatting from `Provenance`
+- [x] 2.4 CLI `python -m app.retrieval.cli search`
+- [x] 2.5 Document cosine distance and calibrate the threshold with a synthetic PT/EN corpus and one real book (`scripts/calibrate_retrieval.py`); default 0.45
+- [x] 2.6 Tests: empty database, no results, filters, incompatible model, embeddings unavailable, page references (plus 15 opt-in real-Ollama tests, run in the VM)
+- [x] 2.7 Update README, run tests, report
 - [ ] 2.8 **User approval**
 
 ## Stage 3: RAG and FastAPI

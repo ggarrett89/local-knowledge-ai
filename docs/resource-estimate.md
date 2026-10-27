@@ -63,6 +63,17 @@ VM: Ubuntu 22.04, Python 3.10.12, 4 CPUs, 8 GB, no GPU, Ollama 0.40.11, `nomic-e
 | Python virtualenv in the VM | 574 MB |
 | Bare VM on the host | ~2.5 GB right after `vagrant up` |
 
+### Search (Stage 2)
+Measured in the VM against the 944-chunk index of the real book.
+
+| Measurement | Result |
+|-------------|--------|
+| Search call (embed question, query ChromaDB, apply filters) | median 0.10 s, max 0.13 s over 29 questions |
+| Whole CLI call including Python and ChromaDB start-up | about 2.8 s |
+| CLI peak memory | about 110 MB |
+
+Search cost is dominated by process start-up, not by the vector search; a long-running API (Stage 3) will avoid that start-up.
+
 ### One real book (473 pages, 15 MB PDF)
 | Measurement | Result |
 |-------------|--------|
