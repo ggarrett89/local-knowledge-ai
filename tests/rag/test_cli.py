@@ -69,7 +69,8 @@ def test_json_output_matches_the_answer_model(ask):
     code, out, _ = ask(QUESTION, "--json")
     data = json.loads(out)
     assert code == 0 and data["status"] == "answered" and data["sources"][0]["title"] == "Terraform Handbook"
-    assert set(data) == {"status", "answer", "inference", "sources", "retrieved", "notice", "removed_references", "model"}
+    assert set(data) == {"status", "answer", "inference", "sources", "retrieved", "notice", "removed_references",
+                         "unverified_identifiers", "model"}
 
 
 def test_filters_that_match_nothing_do_not_call_the_model(ask):

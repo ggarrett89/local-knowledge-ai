@@ -38,7 +38,7 @@ def test_cited_answer_is_returned_with_sources_from_metadata(library):
 
 def test_sources_come_from_metadata_never_from_what_the_model_writes(library):
     fake = ("As explained in 'Fake Book of Lies', page 999 and at https://evil.example/paper, "
-            "state locking works [1]. See also p. 12.")
+            "remote state in an S3 bucket with locking prevents concurrent applies [1]. See also p. 12.")
     result = rag(library, FakeChat(fake)).answer(TERRAFORM_QUESTION, k=3)
     assert "Fake Book" not in {s.title for s in result.sources + result.retrieved}
     assert "evil.example" not in result.answer and "page 999" not in result.answer and "p. 12" not in result.answer
@@ -111,7 +111,7 @@ def test_the_prompt_contains_the_numbered_passages_and_the_question(library):
     rag(library, chat).answer(TERRAFORM_QUESTION, k=2)
     system, user = chat.calls[0]
     assert system.role == "system" and "INSUFFICIENT_EVIDENCE" in system.content
-    assert '<passage id="1">' in user.content and user.content.rstrip().endswith(f"Question: {TERRAFORM_QUESTION}")
+    assert '<passage id="1">' in user.content and f"Question: {TERRAFORM_QUESTION}\n\nReminder:" in user.content
     assert "S3 bucket" in user.content
 
 
@@ -156,6 +156,41 @@ def test_invalid_questions_are_rejected_before_any_model_call(library):
 def test_logs_contain_no_question_answer_or_passage_text(library, caplog):
     caplog.set_level(logging.DEBUG)
     question = "Terraform remote state S3 bucket locking prevents two engineers applying changes SECRETWORD"
-    rag(library, FakeChat("Distinctive answer sentence [1].")).answer(question, k=3)
+    rag(library, FakeChat("Distinctive remote state S3 bucket locking prevents engineers applying changes [1].")
+        ).answer(question, k=3)
     assert "SECRETWORD" not in caplog.text and "Distinctive" not in caplog.text and "S3 bucket" not in caplog.text
     assert "status=answered" in caplog.text
+
+
+def test_a_wrongly_attributed_citation_is_repaired_from_the_passages(library):
+    # the model cites [1] for a statement that is only in the Kafka passage
+    kafka_first = FakeChat("Consumers in a group share the partitions of a topic and read each one once [1].")
+    result = rag(library, kafka_first).answer("Kafka consumer group partitions topic offsets committed", k=4)
+    assert result.status == "answered"
+    cited = result.sources[0]
+    assert "Kafka" in cited.title and "1 citation(s)" in (result.notice or "") or cited.number == 1
+    chosen = next(h for h in result.retrieved if h.number == cited.number)
+    assert "partition" in chosen.excerpt.lower() or "kafka" in chosen.title.lower()
+
+
+def test_a_statement_that_is_in_no_passage_is_flagged_and_uncited(library):
+    reply = "Terraform stores state in S3 with locking [1]. Quantum dragons compile every yaml into blockchain [1]."
+    result = rag(library, FakeChat(reply)).answer(TERRAFORM_QUESTION, k=3)
+    assert result.status == "answered" and "Quantum dragons compile every yaml into blockchain." in result.answer
+    assert "[1]" in result.answer.split("Quantum")[0] and not result.answer.rstrip().endswith("[1].")
+    assert "could not be found in any retrieved passage" in result.notice
+
+
+def test_commands_and_files_that_are_in_no_passage_are_listed(library):
+    reply = ("Remote state in an S3 bucket with locking prevents concurrent applies [1]. "
+             "Enable it with `terraform init -migrate-state` and the `--made-up-flag` option.")
+    result = rag(library, FakeChat(reply)).answer(TERRAFORM_QUESTION, k=3)
+    assert result.status == "answered"
+    assert result.unverified_identifiers == ["-migrate-state", "--made-up-flag"]
+    assert "may be invented by the model" in result.notice and "`--made-up-flag`" in result.notice
+
+
+def test_no_identifier_warning_when_the_model_uses_only_what_the_passages_say(library):
+    reply = "Locking in an S3 bucket stops two engineers applying changes at once, using `terraform plan` [1]."
+    result = rag(library, FakeChat(reply)).answer(TERRAFORM_QUESTION, k=3)
+    assert result.unverified_identifiers == [] and result.notice is None

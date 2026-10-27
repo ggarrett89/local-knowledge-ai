@@ -36,4 +36,5 @@ class RagAnswer(BaseModel):
     retrieved: List[Source] = Field(default_factory=list)  # every passage the model was shown
     notice: Optional[str] = None
     removed_references: List[str] = Field(default_factory=list)  # model-written pages/URLs we could not verify
+    unverified_identifiers: List[str] = Field(default_factory=list)  # commands/options/files in no passage
     model: Optional[str] = None

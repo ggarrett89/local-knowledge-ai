@@ -76,6 +76,8 @@ class RagService:
 
         body, inference = verify.split_inference(verify.strip_refusal_token(reply))
         body, cited, dropped = verify.validate_citations(body, len(selected))
+        grounding = verify.ground_citations(body, [h.chunk.text for h in selected])
+        body, cited = grounding.text, grounding.cited
         passages_text = "\n".join(h.chunk.text for h in selected)
         allowed_pages = self._pages_of([selected[n - 1] for n in cited])
         body, removed = verify.remove_unverified_references(body, passages_text, allowed_pages)
@@ -84,11 +86,27 @@ class RagService:
             inference, removed_in_inference = verify.remove_unverified_references(inference, passages_text, set())
             removed += removed_in_inference
 
+        unverified = verify.find_unverified_identifiers(f"{body}\n{inference or ''}", passages_text)
+
         notices: List[str] = []
         if dropped:
             notices.append(f"{dropped} citation number(s) pointed at passages that do not exist and were removed.")
+        if grounding.repaired:
+            notices.append(
+                f"{grounding.repaired} citation(s) pointed at a passage that does not contain the statement "
+                "and were moved to the passage that does."
+            )
+        if grounding.unsupported:
+            notices.append(
+                f"{grounding.unsupported} statement(s) could not be found in any retrieved passage; "
+                "their citation was removed. Treat them as unverified."
+            )
         if removed:
             notices.append("Page numbers or URLs written by the model that could not be verified were removed.")
+        if unverified:
+            listed = ", ".join(f"`{t}`" for t in unverified[:8])
+            notices.append(f"These commands, options or file names appear in none of the retrieved passages "
+                           f"and may be invented by the model: {listed}.")
 
         if not body.strip():
             notices.append("The model gave no statement based on the passages.")
@@ -106,7 +124,8 @@ class RagService:
         return RagAnswer(
             status=status, answer=body, inference=inference,
             sources=[retrieved[n - 1] for n in cited], retrieved=retrieved,
-            notice=" ".join(notices) or None, removed_references=removed, model=model,
+            notice=" ".join(notices) or None, removed_references=removed,
+            unverified_identifiers=unverified, model=model,
         )
 
     @staticmethod

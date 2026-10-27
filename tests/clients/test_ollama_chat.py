@@ -123,3 +123,13 @@ def test_model_name_matching_handles_the_default_tag():
     assert OllamaCatalog.matches(installed, "qwen2.5:3b")
     assert not OllamaCatalog.matches(installed, "qwen2.5:7b")
     assert not OllamaCatalog.matches(installed, "qwen2.5")
+
+
+def test_last_usage_records_numbers_only():
+    c = chat_client(reply(prompt_eval_count=1342, eval_count=107, load_duration=5_000_000_000,
+                          prompt_eval_duration=700_000_000, eval_duration=21_400_000_000))
+    assert c.last_usage == {}
+    c.complete(MESSAGES)
+    assert c.last_usage == {"prompt_tokens": 1342, "reply_tokens": 107, "load_s": 5.0,
+                            "prompt_eval_s": 0.7, "generation_s": 21.4}
+    assert all(isinstance(v, (int, float)) for v in c.last_usage.values())

@@ -111,7 +111,8 @@ def test_chat_returns_an_answer_with_verified_sources(loaded):
 
 
 def test_chat_does_not_pass_invented_references_through(loaded):
-    loaded.chat.reply = "Per 'Fake Book' page 999 and https://evil.example/x it works [1]."
+    loaded.chat.reply = ("Per 'Fake Book' page 999 and https://evil.example/x, remote state in an S3 bucket "
+                         "with locking prevents concurrent applies [1].")
     body = loaded.client.post("/chat", json={"question": QUESTION}).json()
     assert "evil.example" not in body["answer"] and "page 999" not in body["answer"]
     assert body["removed_references"] and body["sources"][0]["title"] == "Terraform Handbook"

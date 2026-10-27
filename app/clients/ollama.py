@@ -147,6 +147,7 @@ class OllamaChatClient(_OllamaHttp):
     ) -> None:
         super().__init__(base_url, model, timeout_seconds=timeout_seconds, transport=transport)
         self._options = {"num_ctx": num_ctx, "temperature": temperature, "num_predict": max_tokens}
+        self.last_usage: Dict[str, float] = {}  # numbers only, from the latest reply (for measurements)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "OllamaChatClient":
@@ -178,6 +179,14 @@ class OllamaChatClient(_OllamaHttp):
         if not isinstance(text, str) or not text.strip():
             raise GenerationError("the model returned an empty reply")
         # A prompt that fills the context window gets cut by Ollama, possibly dropping the instructions.
+        self.last_usage = {
+            "prompt_tokens": int(data.get("prompt_eval_count") or 0),
+            "reply_tokens": int(data.get("eval_count") or 0),
+            "load_s": round((data.get("load_duration") or 0) / 1e9, 2),
+            "prompt_eval_s": round((data.get("prompt_eval_duration") or 0) / 1e9, 2),
+            "generation_s": round((data.get("eval_duration") or 0) / 1e9, 2),
+        }
+        logger.info("chat usage %s", self.last_usage)
         if int(data.get("prompt_eval_count") or 0) >= self._options["num_ctx"]:
             raise GenerationError("the prompt filled the model's context window; lower LKA_RAG_CONTEXT_CHARS")
         if data.get("done_reason") == "length":
