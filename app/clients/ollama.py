@@ -25,6 +25,15 @@ logger = logging.getLogger(__name__)
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
+# Rough size of a prompt in tokens. Measured on this stack: ~2.5 characters per token for technical
+# text, so dividing by 3 slightly underestimates, which keeps the truncation check free of false alarms.
+_CHARS_PER_TOKEN = 3
+_TRUNCATION_RATIO = 0.6
+
+
+def estimate_tokens(text: str) -> int:
+    return len(text) // _CHARS_PER_TOKEN
+
 
 def _error_message(response: httpx.Response) -> str:
     try:
@@ -165,6 +174,13 @@ class OllamaChatClient(_OllamaHttp):
         return self._model
 
     def complete(self, messages: Sequence[ChatMessage]) -> str:
+        prompt_text = " ".join(m.content for m in messages)
+        needed = estimate_tokens(prompt_text) + self._options["num_predict"]
+        if needed >= self._options["num_ctx"]:
+            raise GenerationError(
+                f"the prompt (about {needed} tokens with the reply) does not fit the {self._options['num_ctx']}-token "
+                "context window; lower LKA_RAG_CONTEXT_CHARS or raise LKA_CHAT_NUM_CTX"
+            )
         payload = {
             "model": self._model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
@@ -178,7 +194,6 @@ class OllamaChatClient(_OllamaHttp):
             raise GenerationError("unexpected response from Ollama /api/chat") from exc
         if not isinstance(text, str) or not text.strip():
             raise GenerationError("the model returned an empty reply")
-        # A prompt that fills the context window gets cut by Ollama, possibly dropping the instructions.
         self.last_usage = {
             "prompt_tokens": int(data.get("prompt_eval_count") or 0),
             "reply_tokens": int(data.get("eval_count") or 0),
@@ -187,8 +202,16 @@ class OllamaChatClient(_OllamaHttp):
             "generation_s": round((data.get("eval_duration") or 0) / 1e9, 2),
         }
         logger.info("chat usage %s", self.last_usage)
-        if int(data.get("prompt_eval_count") or 0) >= self._options["num_ctx"]:
-            raise GenerationError("the prompt filled the model's context window; lower LKA_RAG_CONTEXT_CHARS")
+        # Measured: Ollama silently truncates a prompt that exceeds num_ctx and reports a token count BELOW
+        # the window (3529 tokens in a 512 window gave 258), so "count >= num_ctx" never fires. Compare with
+        # the size estimate instead; a truncated prompt may have lost the instructions.
+        reported = int(data.get("prompt_eval_count") or 0)
+        expected = estimate_tokens(prompt_text)
+        if reported and reported < expected * _TRUNCATION_RATIO:
+            raise GenerationError(
+                "the prompt was cut by the model's context window "
+                f"(sent about {expected} tokens, the model read {reported}); lower LKA_RAG_CONTEXT_CHARS"
+            )
         if data.get("done_reason") == "length":
             logger.warning("chat reply was cut at the token limit (num_predict=%d)", self._options["num_predict"])
         return text.strip()

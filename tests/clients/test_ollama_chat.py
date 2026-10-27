@@ -81,10 +81,30 @@ def test_http_error_becomes_generation_error():
         chat_client(lambda r: httpx.Response(500, json={"error": "boom"})).complete(MESSAGES)
 
 
-def test_a_prompt_that_fills_the_context_window_is_refused():
-    with pytest.raises(GenerationError, match="context window"):
-        chat_client(reply(prompt_eval_count=4096), num_ctx=4096).complete(MESSAGES)
-    assert chat_client(reply(prompt_eval_count=4000), num_ctx=4096).complete(MESSAGES) == "Hello [1]."
+BIG = [ChatMessage(role="system", content="rules"), ChatMessage(role="user", content="x" * 6000)]  # ~2000 tokens
+
+
+def test_a_prompt_that_cannot_fit_is_refused_before_it_is_sent():
+    sent = []
+
+    def handler(request):
+        sent.append(1)
+        return httpx.Response(200, json={"message": {"content": "x"}})
+
+    with pytest.raises(GenerationError, match="does not fit"):
+        chat_client(handler, num_ctx=2048, max_tokens=600).complete(BIG)
+    assert sent == [], "nothing is sent when the prompt cannot fit"
+
+
+def test_a_prompt_that_ollama_silently_truncated_is_detected():
+    # Measured with Ollama 0.40: a ~3500-token prompt in a 512-token window is reported as 258 tokens.
+    with pytest.raises(GenerationError, match="was cut by the model's context window"):
+        chat_client(reply(prompt_eval_count=258), num_ctx=4096, max_tokens=100).complete(BIG)
+
+
+def test_a_normally_processed_prompt_passes_the_truncation_check():
+    assert chat_client(reply(prompt_eval_count=1900), num_ctx=4096, max_tokens=100).complete(BIG) == "Hello [1]."
+    assert chat_client(reply(), num_ctx=4096, max_tokens=100).complete(BIG) == "Hello [1].", "no count reported"
 
 
 def test_a_reply_cut_at_the_token_limit_is_returned_with_a_warning(caplog):
