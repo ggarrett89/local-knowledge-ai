@@ -83,7 +83,8 @@ def test_a_reply_with_only_an_inference_is_insufficient(library):
 def test_model_refusal_is_insufficient_evidence_with_the_passages_listed(library):
     result = rag(library, FakeChat("INSUFFICIENT_EVIDENCE")).answer(TERRAFORM_QUESTION, k=3)
     assert result.status == "insufficient_evidence" and result.answer == INSUFFICIENT_MESSAGE
-    assert result.sources == [] and len(result.retrieved) > 0 and result.notice
+    assert result.sources == [] and len(result.retrieved) > 0
+    assert result.notice == "The retrieved passages were judged insufficient to answer the question."
 
 
 def test_no_passages_means_no_model_call(tmp_path):
@@ -194,3 +195,12 @@ def test_no_identifier_warning_when_the_model_uses_only_what_the_passages_say(li
     reply = "Locking in an S3 bucket stops two engineers applying changes at once, using `terraform plan` [1]."
     result = rag(library, FakeChat(reply)).answer(TERRAFORM_QUESTION, k=3)
     assert result.unverified_identifiers == [] and result.notice is None
+
+
+def test_a_long_reply_that_only_mentions_the_refusal_token_is_unverified_not_a_refusal(library):
+    # Not a clean refusal (it is mostly prose) and it cites nothing: returned as unverified, token removed.
+    reply = "Sorry. INSUFFICIENT_EVIDENCE for this question, as far as I can tell here with these passages."
+    result = rag(library, FakeChat(reply)).answer(TERRAFORM_QUESTION, k=3)
+    assert result.status == "unverified" and result.sources == []
+    assert "INSUFFICIENT_EVIDENCE" not in result.answer and "Sorry." in result.answer
+    assert "cites none of the retrieved passages" in result.notice
