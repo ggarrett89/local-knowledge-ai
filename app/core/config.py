@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=200, ge=0)
     embed_batch_size: int = Field(default=16, ge=1, le=256)
 
+    # Retrieval. Distances are cosine distances (0 = identical direction, 2 = opposite).
+    retrieval_k: int = Field(default=5, ge=1)
+    retrieval_max_k: int = Field(default=50, ge=1)
+    retrieval_overfetch: int = Field(default=4, ge=1, le=20)
+    # Hits farther than this are dropped. 2.0 keeps everything; calibrated value: see README.
+    relevance_max_distance: float = Field(default=2.0, gt=0, le=2.0)
+    dedupe_adjacent: bool = True
+    max_query_chars: int = Field(default=1000, ge=10, le=4000)
+
     # API
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
@@ -69,6 +78,8 @@ class Settings(BaseSettings):
     def _check_chunking(self) -> "Settings":
         if self.chunk_overlap >= self.chunk_size // 2:
             raise ValueError("chunk_overlap must be smaller than half of chunk_size")
+        if self.retrieval_k > self.retrieval_max_k:
+            raise ValueError("retrieval_k must not exceed retrieval_max_k")
         return self
 
 

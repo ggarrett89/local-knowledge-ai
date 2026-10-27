@@ -21,6 +21,10 @@ class InvalidDocument(LkaError):
     """The file is corrupted, encrypted, unsupported or unreadable."""
 
 
+class InvalidQuery(LkaError, ValueError):
+    """The search question is empty, too long or otherwise unusable."""
+
+
 class DocumentNotFound(LkaError):
     """No document with the given id exists."""
 
