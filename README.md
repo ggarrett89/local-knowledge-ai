@@ -33,7 +33,7 @@ Details in [`.kiro/specs/local-knowledge-ai-foundation/design.md`](.kiro/specs/l
 | `app/services.py` | Composition root: builds the stores, clients and services for the API and CLIs |
 | `scripts/` | Measurement helpers: context probe, sample PDF, retrieval calibration |
 | `config/categories.json` | Initial categories (suggestions; new categories need no code change) |
-| `docs/` | Test plan, VM plan, resource estimate |
+| `docs/` | Test plan, VM plan, resource estimate, and `status.md` (where work stopped and how to resume) |
 | `tests/` | Automated tests (mirror `app/`) |
 | `Vagrantfile` | Ubuntu 22.04 VM, 4 CPUs, 8 GB (adjustable) |
 | `data/` | Metadata database and vector index. **Outside Git**; created on demand |
