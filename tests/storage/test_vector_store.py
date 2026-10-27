@@ -124,3 +124,63 @@ def test_embedding_dimension_change_is_reported_as_model_mismatch(store):
     with pytest.raises(EmbeddingModelMismatch):
         store.upsert(second, vectors_for(second, dim=6))
     assert store.count() == 1
+
+
+# --- query ---------------------------------------------------------------------------
+
+
+def seed_axes(store):
+    """Three chunks on the unit axes plus one opposite, in two documents."""
+    chunks = make_chunks("pdf-a", 2) + make_chunks("pdf-b", 2)
+    vectors = [[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.6, 0.8]]
+    store.upsert(chunks, vectors)
+    return chunks
+
+
+def test_query_returns_cosine_distances_best_first(store):
+    seed_axes(store)
+    hits = store.query([1.0, 0.0], 10)
+    assert [h.chunk.chunk_id for h in hits] == ["pdf-a:0", "pdf-b:1", "pdf-a:1", "pdf-b:0"]
+    assert [round(h.distance, 3) for h in hits] == [0.0, 0.4, 1.0, 2.0]
+
+
+def test_query_limits_results_and_tolerates_k_above_count(store):
+    seed_axes(store)
+    assert len(store.query([1.0, 0.0], 2)) == 2
+    assert len(store.query([1.0, 0.0], 100)) == 4
+
+
+def test_query_filters_by_document_ids(store):
+    seed_axes(store)
+    hits = store.query([1.0, 0.0], 10, ["pdf-b"])
+    assert {h.chunk.provenance.document_id for h in hits} == {"pdf-b"}
+    assert store.query([1.0, 0.0], 10, ["pdf-a", "pdf-b"]) == store.query([1.0, 0.0], 10)
+    assert store.query([1.0, 0.0], 10, ["pdf-unknown"]) == []
+    assert store.query([1.0, 0.0], 10, []) == [], "an empty id list matches nothing"
+
+
+def test_query_on_an_empty_store_returns_nothing(store):
+    assert store.query([1.0, 0.0], 5) == []
+
+
+def test_query_rebuilds_provenance_from_stored_metadata(store):
+    chunks = make_chunks("pdf-a", 1)
+    store.upsert(chunks, [[1.0, 0.0]])
+    (hit,) = store.query([1.0, 0.0], 1)
+    c = hit.chunk
+    assert (c.chunk_id, c.chunk_index, c.text) == ("pdf-a:0", 0, "text of pdf-a chunk 0")
+    assert c.content_hash == "hash-pdf-a-0"
+    p = c.provenance
+    assert (p.source_type, p.document_id, p.title, p.page_start, p.page_end) == ("pdf", "pdf-a", "Title pdf-a", 1, 2)
+    assert p.url is None and p.section is None and p.repo is None and p.path is None and p.line_start is None
+
+
+def test_query_with_a_different_dimension_is_a_model_mismatch(store):
+    seed_axes(store)
+    with pytest.raises(EmbeddingModelMismatch):
+        store.query([1.0, 0.0, 0.0], 3)
+
+
+def test_query_rejects_k_below_one(store):
+    with pytest.raises(ValueError):
+        store.query([1.0, 0.0], 0)

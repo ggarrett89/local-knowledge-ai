@@ -34,6 +34,9 @@ Everything runs inside the Ubuntu VM: one Python process (API/CLI) and the Ollam
 | D13 | Duplicate/change detection is per document (SHA-256 of the file); a changed file is reindexed whole and replaces the old version found at the same path | Page-level diffing | Simple, idempotent, and enough for books. |
 | D14 | A failed ingestion deletes its partial chunks, stores the document with status `error` plus an error row, and is retried by running `add` again. Service-wide errors (`systemic`: Ollama down, model missing, embeddings mismatch) stop a batch. | Keep partial chunks | Partial chunks would be returned by search without a matching complete document. |
 | D15 | PyMuPDF is pinned `<2` | Latest | PyMuPDF 2.x requires Python 3.11; the VM ships 3.10. |
+| D16 | Default relevance threshold is a cosine distance of 0.45 (`LKA_RELEVANCE_MAX_DISTANCE`), chosen from measurements; `2.0` disables it | Stricter 0.40; no threshold | 0.45 kept all 18 answerable real-book questions and all 10 synthetic ones; 0.40 lost one Portuguese question. See README for the data. |
+| D17 | Distance is used to rank and to cut obvious noise, not to decide "no evidence" | Treat the threshold as the refusal rule | Measured: Portuguese questions on an English book (0.30-0.45) overlap unrelated questions (0.39-0.50). Stage 3 must combine retrieval with the text and the model's answer. |
+| D18 | Adjacent-chunk de-duplication is on by default | Merge neighbours into one passage | Neighbouring chunks overlap by design. Dropping is simple; merging into a larger context belongs to Stage 3 context assembly. |
 
 ## 3. Data model
 
@@ -114,7 +117,8 @@ class MetadataStore(Protocol):
 
 # app/retrieval/service.py
 class Retriever:
-    def search(self, query: str, *, k: int, filters: SearchFilters) -> list[SearchHit]: ...
+    def search(self, query: str, *, k: int | None = None, filters: SearchFilters | None = None,
+               max_distance: float | None = None) -> list[SearchHit]: ...   # Stage 2, implemented
 
 # app/rag/chat.py
 class ChatClient(Protocol):
@@ -140,8 +144,10 @@ The sketches above define the boundaries. Final signatures are fixed in each sta
 1. Check embeddings-model compatibility with the collection (R2.3).
 2. Resolve filters in SQLite into `document_id`s.
 3. Embed the question, query Chroma with `k * overfetch`.
-4. Apply the relevance threshold and deduplication (by `content_hash` and adjacency), cut to `k`.
-5. Preparation for hybrid search: `Retriever` composes a list of "candidate generators"; today only the semantic one exists.
+4. Apply the relevance threshold (default cosine distance 0.45), sort, then de-duplicate by `content_hash` and by adjacency (a chunk next to an already selected chunk of the same document is dropped), and cut to `k`.
+5. Preparation for hybrid search: `Retriever` depends only on the `CandidateGenerator` protocol (`generate(query, limit, document_ids)`); `SemanticCandidates` is the only implementation. A future lexical or hybrid generator fuses its sources internally and plugs in without changing `Retriever.search`.
+
+Behavior fixed in Stage 2: if the filters select no document, the question is not even embedded and the result is empty; only documents with status `indexed` can be selected; an empty index, no match, or all hits beyond the threshold all give an empty list, never an error.
 
 ### 5.3 RAG (Stage 3)
 1. Validate the question (maximum length).
@@ -190,7 +196,8 @@ See `docs/resource-estimate.md`.
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | `qwen2.5:3b` hallucinates or ignores instructions in Portuguese | Inaccurate answers | Citations generated from metadata, "no evidence" fallback, Stage 7 evaluation, larger model by configuration. |
-| `nomic-embed-text` was trained mostly on English | Lower recall in Portuguese | Measure in Stage 7. A multilingual alternative only with approval and reindexing. |
+| `nomic-embed-text` was trained mostly on English | Lower recall in Portuguese | Measured in Stage 2: Portuguese questions on an English book still found a relevant chunk in the top 5 for 6 of 6, but with larger distances (0.30-0.45 vs 0.17-0.29). Systematic measurement is Stage 7. A multilingual alternative only with approval and reindexing. |
+| Cosine distance overlaps between "asked in another language" and "not in the book" | A distance threshold either lets noise through or drops valid Portuguese questions | Threshold only removes obvious noise (0.45); the refusal decision is made in Stage 3 with the retrieved text. |
 | `nomic-embed-text` context window: measured 2048 tokens. Prose worked up to 8,000 characters, dense numeric text failed at 3,000 | Failed requests on long or numeric-heavy chunks | Default chunk is 1200 characters; `truncate=false` makes over-long input fail loudly instead of being cut silently. Re-run `scripts/probe_embedding_context.py` before raising the chunk size. |
 | PyMuPDF repairs truncated PDFs and may return less text without an error | Silently incomplete book | Documented limitation; compare page text counts in Stage 7 if it matters. |
 | Generation latency on CPU (3B) | Answers take tens of seconds | Bounded context, timeouts, streaming possible later. |

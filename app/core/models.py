@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.errors import InvalidSlug
 
@@ -51,6 +51,41 @@ class Chunk(BaseModel):
     text: str
     content_hash: str
     provenance: Provenance
+
+
+class SearchFilters(BaseModel):
+    """Restrict a search. All given filters must match (AND); topics must all be present."""
+
+    document_ids: Optional[List[str]] = None
+    category: Optional[str] = None
+    topics: Optional[List[str]] = None
+    source_type: Optional[SourceType] = None
+
+    @field_validator("category")
+    @classmethod
+    def _normalize_category(cls, value: Optional[str]) -> Optional[str]:
+        return normalize_slug(value) if value is not None else None
+
+    @field_validator("topics")
+    @classmethod
+    def _normalize_topics(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        return [normalize_slug(t) for t in value] if value is not None else None
+
+    def is_empty(self) -> bool:
+        return (
+            self.document_ids is None
+            and self.category is None
+            and not self.topics
+            and self.source_type is None
+        )
+
+
+class SearchHit(BaseModel):
+    """A retrieved chunk. ``distance`` is a cosine distance (0 = same direction, 2 = opposite);
+    it ranks results and is NOT a probability of relevance."""
+
+    chunk: Chunk
+    distance: float
 
 
 class Section(BaseModel):

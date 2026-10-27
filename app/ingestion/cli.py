@@ -67,13 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _runtime(settings: Settings, embedder: Optional[EmbeddingClient], *, enforce_identity: bool = True) -> Iterator[IngestionService]:
     own_embedder = embedder is None
     if embedder is None:
-        embedder = OllamaEmbeddingClient(
-            settings.ollama_base_url,
-            settings.embedding_model,
-            timeout_seconds=settings.ollama_timeout_seconds,
-            document_prefix=settings.embedding_document_prefix,
-            query_prefix=settings.embedding_query_prefix,
-        )
+        embedder = OllamaEmbeddingClient.from_settings(settings)
     metadata = SqliteMetadataStore(settings.metadata_db_path)
     try:
         metadata.seed_categories_from_file(settings.categories_file)

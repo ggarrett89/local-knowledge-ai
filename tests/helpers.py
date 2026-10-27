@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import math
+import re
 from pathlib import Path
 from typing import List, Optional, Sequence
 
@@ -74,6 +76,50 @@ class FakeEmbedder:
         return [self._vector(t) for t in texts]
 
     def embed_query(self, text: str) -> List[float]:
+        return self._vector(text)
+
+    def close(self) -> None:
+        pass
+
+
+class BagOfWordsEmbedder:
+    """Deterministic embeddings where texts sharing words are close (cosine). No Ollama needed.
+
+    It only matches identical word forms, so it does not model meaning or other languages; the
+    real model is exercised by the opt-in integration tests.
+    """
+
+    DIM = 8192  # wide enough that distinct words practically never share a bucket
+
+    def __init__(self, identity: str = "bow|v1", *, error: Optional[Exception] = None) -> None:
+        self._identity = identity
+        self.error = error
+        self.query_calls = 0
+
+    @property
+    def identity(self) -> str:
+        return self._identity
+
+    def _vector(self, text: str) -> List[float]:
+        vec = [0.0] * self.DIM
+        for word in re.findall(r"\w+", text.lower()):
+            bucket = int(hashlib.md5(word.encode("utf-8")).hexdigest(), 16) % self.DIM
+            vec[bucket] += 1.0
+        norm = math.sqrt(sum(x * x for x in vec))
+        if norm == 0:
+            vec[0] = 1.0
+            return vec
+        return [x / norm for x in vec]
+
+    def embed_documents(self, texts: Sequence[str]) -> List[List[float]]:
+        if self.error is not None:
+            raise self.error
+        return [self._vector(t) for t in texts]
+
+    def embed_query(self, text: str) -> List[float]:
+        self.query_calls += 1
+        if self.error is not None:
+            raise self.error
         return self._vector(text)
 
     def close(self) -> None:

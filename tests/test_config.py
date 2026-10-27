@@ -110,3 +110,32 @@ def test_categories_file_is_valid():
     assert {"programming", "software-architecture", "distributed-systems", "devops-sre",
             "cloud", "containers-kubernetes", "iac-automation", "databases-messaging",
             "security", "ai-ml", "general"} == set(slugs)
+
+
+def test_retrieval_defaults():
+    s = Settings(_env_file=None)
+    assert (s.retrieval_k, s.retrieval_max_k, s.retrieval_overfetch) == (5, 50, 4)
+    assert s.dedupe_adjacent is True and s.max_query_chars == 1000
+    assert s.relevance_max_distance == 0.45
+
+
+def test_retrieval_settings_from_env(monkeypatch):
+    monkeypatch.setenv("LKA_RETRIEVAL_K", "8")
+    monkeypatch.setenv("LKA_RELEVANCE_MAX_DISTANCE", "0.5")
+    monkeypatch.setenv("LKA_DEDUPE_ADJACENT", "false")
+    s = load_settings()
+    assert (s.retrieval_k, s.relevance_max_distance, s.dedupe_adjacent) == (8, 0.5, False)
+
+
+@pytest.mark.parametrize("name,value", [
+    ("LKA_RETRIEVAL_K", "0"),
+    ("LKA_RETRIEVAL_K", "51"),          # above the default max_k of 50
+    ("LKA_RELEVANCE_MAX_DISTANCE", "0"),
+    ("LKA_RELEVANCE_MAX_DISTANCE", "2.5"),
+    ("LKA_RETRIEVAL_OVERFETCH", "0"),
+    ("LKA_MAX_QUERY_CHARS", "5"),
+])
+def test_invalid_retrieval_settings_are_rejected(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)

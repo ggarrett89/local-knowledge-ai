@@ -1,0 +1,39 @@
+{
+  "_comment": "Calibration questions for a general Ansible book. 'keywords' are lower-case words; a hit counts as relevant when its text contains at least one. This is a rough proxy for relevance, not ground truth.",
+  "in_scope": [
+    {"q": "How do handlers work and when do they run?", "lang": "en", "keywords": ["handler", "notify"]},
+    {"q": "What is an inventory file and how are hosts grouped?", "lang": "en", "keywords": ["inventory"]},
+    {"q": "How do I encrypt secrets with Ansible Vault?", "lang": "en", "keywords": ["vault"]},
+    {"q": "What are roles and how do I organize them?", "lang": "en", "keywords": ["role"]},
+    {"q": "How do Jinja2 templates generate configuration files?", "lang": "en", "keywords": ["jinja", "template"]},
+    {"q": "How do I gather and use facts about a host?", "lang": "en", "keywords": ["fact", "gather_facts", "setup"]},
+    {"q": "How do I repeat a task over a list of items with a loop?", "lang": "en", "keywords": ["loop", "with_items"]},
+    {"q": "How do I run a task with elevated privileges using become?", "lang": "en", "keywords": ["become", "sudo"]},
+    {"q": "What does idempotence mean for Ansible modules?", "lang": "en", "keywords": ["idempoten"]},
+    {"q": "How do I use Ansible Galaxy to share roles?", "lang": "en", "keywords": ["galaxy"]},
+    {"q": "How does variable precedence work?", "lang": "en", "keywords": ["precedence", "variable"]},
+    {"q": "How do I run a playbook against only some hosts?", "lang": "en", "keywords": ["limit", "--limit", "hosts:"]},
+    {"q": "Como funcionam os handlers e quando eles executam?", "lang": "pt", "keywords": ["handler", "notify"]},
+    {"q": "O que é um arquivo de inventário e como agrupar hosts?", "lang": "pt", "keywords": ["inventory"]},
+    {"q": "Como criptografar segredos com o Ansible Vault?", "lang": "pt", "keywords": ["vault"]},
+    {"q": "O que são roles e como organizá-las?", "lang": "pt", "keywords": ["role"]},
+    {"q": "Como os templates Jinja2 geram arquivos de configuração?", "lang": "pt", "keywords": ["jinja", "template"]},
+    {"q": "Como repetir uma tarefa para uma lista de itens com loop?", "lang": "pt", "keywords": ["loop", "with_items"]}
+  ],
+  "unrelated": [
+    "What is a good recipe for chocolate cake?",
+    "Who won the football World Cup in 1994?",
+    "What is the capital city of Australia?",
+    "How many moons does Jupiter have?",
+    "Qual é uma boa receita de bolo de chocolate?",
+    "Quem ganhou a Copa do Mundo de futebol em 1994?",
+    "Qual é a capital da Austrália?",
+    "Quantas luas Júpiter tem?"
+  ],
+  "other_tech": [
+    "How does the Kubernetes scheduler place pods on nodes?",
+    "How do Kafka consumer groups share partitions?",
+    "How does PostgreSQL VACUUM remove dead rows?",
+    "How is an SLO error budget calculated?"
+  ]
+}

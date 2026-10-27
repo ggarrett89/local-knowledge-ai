@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.core.config import Settings
 from app.core.errors import EmbeddingError, ModelNotInstalled, OllamaUnavailable
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,16 @@ class OllamaEmbeddingClient:
         self._document_prefix = document_prefix
         self._query_prefix = query_prefix
         self._http = httpx.Client(base_url=base_url, timeout=timeout_seconds, transport=transport)
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> "OllamaEmbeddingClient":
+        return cls(
+            settings.ollama_base_url,
+            settings.embedding_model,
+            timeout_seconds=settings.ollama_timeout_seconds,
+            document_prefix=settings.embedding_document_prefix,
+            query_prefix=settings.embedding_query_prefix,
+        )
 
     @property
     def identity(self) -> str:

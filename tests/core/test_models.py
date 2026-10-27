@@ -49,3 +49,28 @@ def test_document_record_defaults():
 def test_only_service_wide_errors_are_systemic():
     assert all(e.systemic for e in (OllamaUnavailable, ModelNotInstalled, EmbeddingModelMismatch))
     assert not any(e.systemic for e in (InvalidDocument, EmbeddingError, LkaError))
+
+
+def test_search_filters_normalize_and_detect_emptiness():
+    from app.core.models import SearchFilters
+    f = SearchFilters(category=" Cloud ", topics=["AWS", "IAM"])
+    assert (f.category, f.topics) == ("cloud", ["aws", "iam"])
+    assert SearchFilters().is_empty() and SearchFilters(topics=[]).is_empty()
+    assert not SearchFilters(document_ids=[]).is_empty(), "an explicit empty id list restricts to nothing"
+    assert not SearchFilters(source_type="pdf").is_empty()
+
+
+def test_search_filters_reject_invalid_slugs():
+    from pydantic import ValidationError
+    from app.core.models import SearchFilters
+    with pytest.raises(ValidationError):
+        SearchFilters(category="Not Valid!")
+    with pytest.raises(ValidationError):
+        SearchFilters(topics=["ok", "../etc"])
+    with pytest.raises(ValidationError):
+        SearchFilters(source_type="video")
+
+
+def test_invalid_query_is_a_value_error():
+    from app.core.errors import InvalidQuery
+    assert issubclass(InvalidQuery, ValueError) and not InvalidQuery.systemic

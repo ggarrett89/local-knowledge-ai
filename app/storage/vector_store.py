@@ -7,7 +7,7 @@ in the collection metadata, and opening the store with a different identity is r
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -15,7 +15,7 @@ from chromadb.errors import InvalidArgumentError
 from pydantic import BaseModel
 
 from app.core.errors import EmbeddingModelMismatch
-from app.core.models import Chunk
+from app.core.models import Chunk, Provenance, SearchHit
 
 COLLECTION_NAME = "lka_chunks"
 IDENTITY_KEY = "lka_embedding_identity"
@@ -74,6 +74,38 @@ class ChromaVectorStore:
                 ) from exc
             raise
 
+    def query(
+        self, vector: Sequence[float], k: int, document_ids: Optional[Sequence[str]] = None
+    ) -> List[SearchHit]:
+        """Nearest chunks by cosine distance, ascending (best first).
+
+        ``document_ids=None`` searches everything; an empty sequence matches nothing.
+        """
+        if k < 1:
+            raise ValueError("k must be at least 1")
+        if document_ids is not None and len(document_ids) == 0:
+            return []
+        where = None if document_ids is None else {"document_id": {"$in": list(document_ids)}}
+        try:
+            res = self._collection.query(
+                query_embeddings=[list(vector)],
+                n_results=k,
+                where=where,
+                include=["documents", "metadatas", "distances"],
+            )
+        except InvalidArgumentError as exc:
+            if "dimension" in str(exc).lower():
+                raise EmbeddingModelMismatch(
+                    "query embedding dimension differs from the index; the embeddings model changed"
+                ) from exc
+            raise
+        hits: List[SearchHit] = []
+        for chunk_id, text, meta, distance in zip(
+            res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0]
+        ):
+            hits.append(SearchHit(chunk=_to_chunk(chunk_id, text, dict(meta)), distance=float(distance)))
+        return hits
+
     def delete_document(self, document_id: str) -> int:
         ids = self._collection.get(where={"document_id": document_id}, include=[])["ids"]
         self._delete_ids(ids)
@@ -109,6 +141,29 @@ class ChromaVectorStore:
     def _delete_ids(self, ids: List[str]) -> None:
         for start in range(0, len(ids), _DELETE_SLICE):
             self._collection.delete(ids=ids[start:start + _DELETE_SLICE])
+
+
+def _to_chunk(chunk_id: str, text: str, meta: Dict[str, Any]) -> Chunk:
+    """Rebuild a chunk from stored data. Fields absent from storage stay None."""
+    return Chunk(
+        chunk_id=chunk_id,
+        chunk_index=int(meta["chunk_index"]),
+        text=text,
+        content_hash=meta["content_hash"],
+        provenance=Provenance(
+            source_type=meta["source_type"],
+            document_id=meta["document_id"],
+            title=meta["title"],
+            page_start=meta.get("page_start"),
+            page_end=meta.get("page_end"),
+            url=meta.get("url"),
+            section=meta.get("section"),
+            repo=meta.get("repo"),
+            path=meta.get("path"),
+            line_start=meta.get("line_start"),
+            line_end=meta.get("line_end"),
+        ),
+    )
 
 
 def _chunk_metadata(chunk: Chunk) -> Dict[str, Any]:
