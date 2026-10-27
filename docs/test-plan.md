@@ -70,7 +70,7 @@ Mutation check done once by hand: disabling the cleanup of partial chunks, and d
 - Time, memory and disk were measured once on synthetic text (README "Measured results"); the systematic benchmark is Stage 7.
 - Retrieval quality: no search exists yet (Stage 2).
 
-## Stage 2 (current): semantic search
+## Stage 2: semantic search
 Default tests use a deterministic word-overlap embedder (`BagOfWordsEmbedder`) with real SQLite and ChromaDB, and PDFs generated from a small bilingual synthetic corpus (`tests/corpus.py`, written for this project). The word-overlap embedder proves plumbing, ranking mechanics, filters, references and thresholds; it does not model meaning or other languages.
 
 | Area | Covered |
@@ -92,3 +92,31 @@ Mutation checks done by hand: ignoring the filters, comparing the threshold the 
 - Labelled ground truth, Recall@k on real data and answer quality: Stage 7.
 - Books other than one clean text-based English book; scanned or code-heavy books.
 - Lexical (exact-term) queries; hybrid search does not exist.
+
+## Stage 3 (current): grounded answers and HTTP API
+Default tests use a scripted fake chat client, a word-overlap embedder, real SQLite and ChromaDB in temp directories, and FastAPI's `TestClient`. No Ollama and no model is involved.
+
+| Area | Covered |
+|------|---------|
+| Chat client | request shape, options, empty/malformed/non-JSON replies, unreachable/timeout, missing model without pulling, HTTP errors, usage numbers, prompt that cannot fit refused before sending, silent truncation detected, model catalog |
+| Settings | defaults, bounds, token minimum length, empty token = disabled |
+| Context and prompt | budget (best passage always kept), numbering, delimiter forgery neutralized, rules in the system message and passages in the user message, the refusal word not repeated in the reminder |
+| Verification | refusal recognition, `Inference:` split (EN/PT/markdown), citation validation, URL and page redaction against cited pages, grounding (keep, move, remove, paraphrase, invented references not diluting support, a clearly better passage taking over), invented identifiers |
+| RAG service | cited answer with metadata sources, invented references removed, wrong attribution repaired, statement in no passage flagged, `unverified`, inference apart, refusal paths, no passages = no model call, budget limits passages, injection text stays inside its passage, model failures propagate, logs without question/answer/passage text |
+| API | health variants, search and chat contracts, filters, validation, generic 503/502/409/500 without leaks, documents never expose absolute paths, authentication (missing, wrong, malformed, disabled, before body validation, constant-time call), ingest (relative/absolute, folder, force, traversal, symlinks, missing, problem files, Ollama down, single-flight lock, lock released on failure), delete (confirmation, file kept, lock), body limits (declared and streamed), privacy (logs, token never returned), exactly the required endpoints, start-up and shutdown, fail-fast on embeddings mismatch, default binding |
+| Storage | the metadata store used from several threads |
+| Ingestion | `confine_to_root` skips symlinks that leave the folder |
+| Scripts | `evaluate_rag.py` and its question file |
+
+**Opt-in, real models (`pytest -m integration`, run in the VM, 19 passed):** the four Stage 3 tests assert only invariants that must hold for any output (sources are retrieved passages, no URL or page the passages cannot back, an unrelated question is not answered from the library, a planted instruction does not hijack the answer). Answer quality is measured by `scripts/evaluate_rag.py`, not asserted.
+
+**Measured by script (README "Measured results (Stage 3)"):** 16 questions on the real book, run five times across prompt variants, including a cold start. Findings that changed the code: misattributed citations, an invented file name, missing Portuguese citations, over-refusal when the refusal word was repeated, and Ollama silently truncating long prompts.
+
+Mutation checks done by hand: page-number redaction, citation validation, the no-passages guard, the token check, path confinement, delimiter neutralization, citation grounding, the identifier check, the pre-send size check, truncation detection and refusal recognition were each disabled and made tests fail. The last one first survived (a second path produces the same result), so a test now pins which path ran.
+
+**Not covered**
+- Answer correctness. The checks verify references and wording, not truth; there is no labelled ground truth (Stage 7).
+- More than 16 questions, one book, mostly English; scanned or code-heavy books.
+- Variation between runs: individual questions flipped between runs with identical settings.
+- Token-dense text in the context-window guard.
+- Concurrent users: one request at a time was exercised against the real model.

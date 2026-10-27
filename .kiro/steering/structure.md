@@ -9,8 +9,9 @@ app/
   storage/     SQLite (metadata) and ChromaDB (vectors) behind interfaces
   ingestion/   pdf/, web/, code/ + shared chunking and CLI
   retrieval/   semantic search, filters, deduplication, CLI
-  rag/         context assembly, prompt, Ollama chat client, citations
-  api/         FastAPI: routes, Pydantic schemas, dependencies
+  rag/         context assembly, prompt, answer verification, citations (uses the chat client from clients/)
+  api/         FastAPI: routes, Pydantic schemas, authentication, error mapping
+  services.py  composition root: builds stores, clients and services for the API and the CLIs
 config/        versionable configuration files without secrets (e.g. categories.json)
 data/          documents/, vector_db/, cache/ (outside Git)
 docs/          test plan, VM, resource estimate

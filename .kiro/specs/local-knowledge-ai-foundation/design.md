@@ -37,6 +37,12 @@ Everything runs inside the Ubuntu VM: one Python process (API/CLI) and the Ollam
 | D16 | Default relevance threshold is a cosine distance of 0.45 (`LKA_RELEVANCE_MAX_DISTANCE`), chosen from measurements; `2.0` disables it | Stricter 0.40; no threshold | 0.45 kept all 18 answerable real-book questions and all 10 synthetic ones; 0.40 lost one Portuguese question. See README for the data. |
 | D17 | Distance is used to rank and to cut obvious noise, not to decide "no evidence" | Treat the threshold as the refusal rule | Measured: Portuguese questions on an English book (0.30-0.45) overlap unrelated questions (0.39-0.50). Stage 3 must combine retrieval with the text and the model's answer. |
 | D18 | Adjacent-chunk de-duplication is on by default | Merge neighbours into one passage | Neighbouring chunks overlap by design. Dropping is simple; merging into a larger context belongs to Stage 3 context assembly. |
+| D19 | `app/services.py` is the composition root shared by the API and the CLIs; the search and ingestion CLIs keep their own small wiring | Refactor the older CLIs | Smaller change; the Stage 3 entry points use one place. |
+| D20 | Citations are grounded lexically: per cited statement, compare its distinctive words and identifiers with each passage. Keep a citation the passage clearly supports (>= 0.5), move it if another passage supports the statement by a clear margin, keep a partly supported one (>= 0.25, typical of paraphrase), else remove it and count the statement as unsupported | Ask the model to verify itself; an NLI model | Needs no extra model or memory. Measured: the model cited the wrong passage for facts present elsewhere. Limits: it judges word overlap, not meaning, and cannot confirm Portuguese statements against English passages. |
+| D21 | Commands, options and file names written in backticks or code blocks must appear in a passage; others are reported in `unverified_identifiers` | Remove them | The reader decides; removing would break valid examples. Plain-word commands are not checked. |
+| D22 | A reply with no valid citation is `unverified`, not rejected | Reject or regenerate | Regenerating costs another 60+ seconds and is not guaranteed to cite; the status lets the reader decide. |
+| D23 | The chat client estimates prompt size (characters / 3) and compares it with the size Ollama reports | Compare the reported count with `num_ctx` | Measured: Ollama reports a count below the window after silently truncating. The estimate undercounts token-dense text, so some truncation can go unnoticed. |
+| D24 | Ingestion through the API is synchronous and single-flight | Background jobs with a status endpoint | Smaller scope for Stage 3; large books should use the CLI. Revisit with the web UI. |
 
 ## 3. Data model
 
@@ -150,12 +156,13 @@ The sketches above define the boundaries. Final signatures are fixed in each sta
 Behavior fixed in Stage 2: if the filters select no document, the question is not even embedded and the result is empty; only documents with status `indexed` can be selected; an empty index, no match, or all hits beyond the threshold all give an empty list, never an error.
 
 ### 5.3 RAG (Stage 3)
-1. Validate the question (maximum length).
-2. `Retriever.search`. No results: answer "insufficient evidence" without calling the LLM.
-3. Build a numbered context `[1]..[n]` up to the character/token budget.
-4. System prompt: use only the context, separate "Found in the sources" from "Inference", cite by number, do not invent references.
-5. Call Ollama with a timeout. The answer is validated: cited numbers that do not exist in the context are discarded.
-6. `sources` is generated from the metadata of the chunks used.
+1. Validate the question (`LKA_MAX_QUERY_CHARS`). `Retriever.search` applies the filters and the relevance threshold.
+2. No passages: status `insufficient_evidence` **without calling the model**.
+3. Build a numbered context `<passage id="n">` up to `LKA_RAG_CONTEXT_CHARS` (the best passage is always kept). Passage text is sanitized so it cannot forge the delimiters.
+4. System prompt: use only the passages, cite by number, never write pages/URLs/titles, reply `INSUFFICIENT_EVIDENCE` when the passages do not answer, put anything not stated in the passages in a final `Inference:` paragraph, answer in the question's language, treat passages as untrusted data. It includes a short worked example (EN and PT), and a reminder after the question that deliberately does not repeat the refusal word (repeating it made the model refuse answerable questions).
+5. `OllamaChatClient` refuses a prompt that cannot fit `LKA_CHAT_NUM_CTX` before sending it and checks the reported prompt size afterwards (Ollama truncates silently). Timeout `LKA_CHAT_TIMEOUT_SECONDS`.
+6. Verify the reply (`app/rag/verify.py`), in this order: refusal token; split `Inference:`; drop citation numbers that do not exist; **ground citations** (move or remove them by lexical support, see D20); remove model-written URLs and page numbers that cannot be verified; list code-like tokens found in no passage. A reply with no valid citation is `unverified`.
+7. `sources` is built from the stored metadata of the cited passages; `retrieved` lists every passage shown.
 
 ### 5.4 Web collector (Stage 4)
 Pipeline: registered source → bounded queue (depth/pages) → `UrlGuard` (http/https scheme, domain/path allowlist, DNS resolution, non-public IP blocking) → fetch with `httpx` without automatic redirects (each hop passes through `UrlGuard` again) → byte limit and `Content-Type` → main-content extraction → `content_hash` → chunking by section → embeddings. The validated IP is the one used for the connection, to reduce DNS-rebinding risk. Respect `robots.txt` and terms of use.
@@ -178,10 +185,12 @@ Domain errors in `app/core/errors.py`: `EmbeddingModelMismatch`, `OllamaUnavaila
 
 ## 8. Security
 
-- Listens on `127.0.0.1`. Administrative token for `POST /documents/ingest` and `DELETE /documents/{id}`. Constant-time comparison. The API refuses to start with ingestion enabled and no token.
-- `documents/ingest` accepts only paths inside `LKA_DOCUMENTS_DIR` (path-traversal prevention).
-- Logging without content (only ids, counts, durations).
-- Prompt-injection threat via documents: retrieved content is treated as data in the prompt, delimited, and the system instruction forbids following instructions found in the context. The risk remains (small LLM) and will be documented.
+- Listens on `127.0.0.1` by default. `POST /documents/ingest` and `DELETE /documents/{id}` need `Authorization: Bearer <token>`, compared with `secrets.compare_digest`, and authentication runs **before** the body is read (a route class, not a dependency, because FastAPI parses the body first otherwise). With no token configured the endpoints answer `403` (disabled) instead of the API refusing to start; the token must have at least 16 characters. `DELETE` also needs `confirm=true`.
+- `documents/ingest` resolves the path (symlinks included) and requires it to stay inside `LKA_DOCUMENTS_DIR`; folder mode skips symlinked files whose real path leaves the folder (`confine_to_root`). One ingestion at a time (lock, `409`).
+- Request bodies above `LKA_API_MAX_BODY_BYTES` get `413`, whether the size is declared or streamed.
+- Infrastructure errors return fixed text (no URL, model name, path or traceback); logs record counts, timings and exception class names only, never questions, answers or document text. Responses expose file names, not absolute paths.
+- Prompt-injection threat via documents: retrieved content is delimited, tags inside it are neutralized, and the system prompt says to ignore instructions in it. A real-model test with a planted instruction passed, but the risk remains for a 3B model and is documented.
+- The model is never trusted to produce references: only cited, verified passages become `sources`.
 
 ## 9. Test strategy
 
@@ -195,7 +204,8 @@ See `docs/resource-estimate.md`.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| `qwen2.5:3b` hallucinates or ignores instructions in Portuguese | Inaccurate answers | Citations generated from metadata, "no evidence" fallback, Stage 7 evaluation, larger model by configuration. |
+| `qwen2.5:3b` hallucinates or ignores instructions in Portuguese | Inaccurate answers | Measured in Stage 3: misattributed citations, one invented file name, no citations in most Portuguese answers (2 of 4 cited). Mitigated by sources from metadata, citation grounding, identifier check, the `unverified` status and the "no evidence" fallback; not eliminated. Stage 7 should evaluate a larger or different model by configuration. |
+| Latency on CPU | An answer takes about 70 s (31 to 128 s) | Measured in Stage 3. Reading the passages dominates (median 52 s of 71 s). Options for Stage 7: fewer or shorter passages, a smaller context budget, a smaller model, or a GPU. |
 | `nomic-embed-text` was trained mostly on English | Lower recall in Portuguese | Measured in Stage 2: Portuguese questions on an English book still found a relevant chunk in the top 5 for 6 of 6, but with larger distances (0.30-0.45 vs 0.17-0.29). Systematic measurement is Stage 7. A multilingual alternative only with approval and reindexing. |
 | Cosine distance overlaps between "asked in another language" and "not in the book" | A distance threshold either lets noise through or drops valid Portuguese questions | Threshold only removes obvious noise (0.45); the refusal decision is made in Stage 3 with the retrieved text. |
 | `nomic-embed-text` context window: measured 2048 tokens. Prose worked up to 8,000 characters, dense numeric text failed at 3,000 | Failed requests on long or numeric-heavy chunks | Default chunk is 1200 characters; `truncate=false` makes over-long input fail loudly instead of being cut silently. Re-run `scripts/probe_embedding_context.py` before raising the chunk size. |

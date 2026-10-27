@@ -74,6 +74,23 @@ Measured in the VM against the 944-chunk index of the real book.
 
 Search cost is dominated by process start-up, not by the vector search; a long-running API (Stage 3) will avoid that start-up.
 
+### Chat model and answers (Stage 3)
+Measured in the VM (4 CPUs, no GPU, Ollama 0.40.11) with `qwen2.5:3b` (1.9 GB on disk) and a 4,096-token context.
+
+| Measurement | Result |
+|-------------|--------|
+| Disk used by `qwen2.5:3b` | 1.9 GB (the VM disk went from 4.6 to 6.4 GB used while downloading) |
+| VM RAM, both models loaded, idle | 2.6 GB |
+| VM RAM while answering | about 3.0 GB (Ollama chat runner about 2.4 GB, Python about 140 MB) |
+| Loading the chat model | about 5 s |
+| Prompt size | 1,342 to 1,510 tokens (5 passages) |
+| Reading the prompt | median 52 s on a fresh question; under 1 s when the same prompt was just read |
+| Generating the reply | median 21 s, about 5 tokens per second (107 to 177 tokens) |
+| One fresh question, end to end | median 71 s, range 31 to 128 s (HTTP: 55 to 86 s) |
+| Question with no close passage | about 1 s (the model is not called) |
+
+The earlier estimate for peak RAM (4 to 5.5 GB, VM of 8 GB) was conservative: measured use is about 3 GB, so the VM could be reduced to 6 GB. Time, not memory, is the limit on this machine.
+
 ### One real book (473 pages, 15 MB PDF)
 | Measurement | Result |
 |-------------|--------|
