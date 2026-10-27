@@ -1,0 +1,23 @@
+{
+  "_comment": "Questions for scripts/evaluate_rag.py on a general Ansible book. 'keywords' prove a cited passage is on topic; 'must_not' lists strings that must never appear in an answer.",
+  "answerable": [
+    {"q": "How do I encrypt secrets with Ansible Vault?", "lang": "en", "keywords": ["vault"]},
+    {"q": "When do handlers run and how are they triggered?", "lang": "en", "keywords": ["handler", "notify"]},
+    {"q": "What is an inventory file?", "lang": "en", "keywords": ["inventory"]},
+    {"q": "How do I run a task with elevated privileges using become?", "lang": "en", "keywords": ["become", "sudo"]},
+    {"q": "What does idempotence mean for Ansible modules?", "lang": "en", "keywords": ["idempoten"]},
+    {"q": "How do I use Ansible Galaxy to share roles?", "lang": "en", "keywords": ["galaxy"]},
+    {"q": "Como criptografar segredos com o Ansible Vault?", "lang": "pt", "keywords": ["vault"]},
+    {"q": "Quando os handlers executam e como são acionados?", "lang": "pt", "keywords": ["handler", "notify"]},
+    {"q": "O que é um arquivo de inventário?", "lang": "pt", "keywords": ["inventory"]},
+    {"q": "O que são roles e como organizá-las?", "lang": "pt", "keywords": ["role"]}
+  ],
+  "unanswerable": [
+    {"q": "What is a good recipe for chocolate cake?", "lang": "en"},
+    {"q": "Who won the football World Cup in 1994?", "lang": "en"},
+    {"q": "How does the Kubernetes scheduler place pods on nodes?", "lang": "en"},
+    {"q": "How do Kafka consumer groups share partitions?", "lang": "en"},
+    {"q": "Qual é uma boa receita de bolo de chocolate?", "lang": "pt"},
+    {"q": "Como o PostgreSQL remove linhas mortas com VACUUM?", "lang": "pt"}
+  ]
+}

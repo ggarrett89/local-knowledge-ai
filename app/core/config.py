@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=200, ge=0)
     embed_batch_size: int = Field(default=16, ge=1, le=256)
 
+    # Chat / RAG (Stage 3). Sizes are in characters unless noted.
+    chat_timeout_seconds: float = Field(default=300.0, gt=0)
+    chat_num_ctx: int = Field(default=4096, ge=512, le=32768)  # tokens; drives memory use
+    chat_temperature: float = Field(default=0.1, ge=0, le=2)
+    chat_max_tokens: int = Field(default=600, ge=16, le=4096)  # reply length limit, in tokens
+    rag_context_chars: int = Field(default=6000, ge=500, le=24000)  # budget for retrieved passages
+
     # Retrieval. Distances are cosine distances (0 = identical direction, 2 = opposite).
     retrieval_k: int = Field(default=5, ge=1)
     retrieval_max_k: int = Field(default=50, ge=1)
@@ -62,6 +69,17 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
     admin_token: Optional[SecretStr] = None
+    api_max_body_bytes: int = Field(default=65536, ge=1024, le=10_000_000)
+
+    @field_validator("admin_token")
+    @classmethod
+    def _check_admin_token(cls, value: Optional[SecretStr]) -> Optional[SecretStr]:
+        """An empty value means "not configured"; a configured token must be long enough."""
+        if value is None or value.get_secret_value() == "":
+            return None
+        if len(value.get_secret_value()) < 16:
+            raise ValueError("admin_token must be at least 16 characters (use a long random value)")
+        return value
 
     @model_validator(mode="after")
     def _derive_data_paths(self) -> "Settings":

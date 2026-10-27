@@ -404,3 +404,20 @@ def test_logs_never_contain_document_text(tmp_path, caplog):
     assert stored_errors, "the failure must have been recorded"
     assert secret not in caplog.text
     assert secret not in stored_errors
+
+
+def test_confine_to_root_skips_symlinks_that_point_outside(env, tmp_path):
+    outside = book(tmp_path, "secret-outside.pdf", tag="o")           # tmp/library/secret-outside.pdf
+    root = tmp_path / "docs"
+    root.mkdir()
+    inside = make_pdf(root / "inside.pdf", [words("it", 60)])
+    (root / "link.pdf").symlink_to(outside)                              # points outside `root`
+    plain = env.service.ingest_folder(root)
+    assert plain.counts() == {"indexed": 2}, "default behaviour follows file symlinks (CLI users link books)"
+    linked = next(r for r in plain.results if r.path.endswith("secret-outside.pdf"))  # reported by real path
+    env.service.remove(linked.document_id)
+
+    confined = env.service.ingest_folder(root, confine_to_root=True)
+    names = sorted(r.path.rsplit("/", 1)[-1] for r in confined.results)
+    assert names == ["inside.pdf"] and inside.is_file()
+    assert all("secret-outside" not in (r.title or "") for r in confined.results)

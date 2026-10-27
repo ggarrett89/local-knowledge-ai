@@ -53,3 +53,7 @@ class ModelNotInstalled(OllamaError):
 
 class EmbeddingError(OllamaError):
     """Ollama answered, but the embeddings request failed or returned unusable data."""
+
+
+class GenerationError(OllamaError):
+    """Ollama answered, but the chat request failed or returned no usable text."""

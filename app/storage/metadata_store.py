@@ -2,16 +2,31 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import sqlite3
+import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, TypeVar
 
 from app.core.clock import utc_now_iso
 from app.core.errors import LkaError
 from app.core.models import DocumentRecord, normalize_slug
 
 SCHEMA_VERSION = 1
+
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _locked(method: _F) -> _F:
+    """Serialize access to the single SQLite connection (the API calls from several threads)."""
+
+    @functools.wraps(method)
+    def wrapper(self: "SqliteMetadataStore", *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
 _MAX_ERROR_LEN = 500
 
 _SCHEMA = """
@@ -79,7 +94,9 @@ class SqliteMetadataStore:
     def __init__(self, db_path: Path) -> None:
         db_path = Path(db_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(db_path))
+        # One connection shared by all threads, guarded by a lock (see _locked).
+        self._lock = threading.RLock()
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._migrate()
@@ -100,6 +117,7 @@ class SqliteMetadataStore:
                     f"(v{SCHEMA_VERSION}); upgrade the application"
                 )
 
+    @_locked
     def close(self) -> None:
         self._conn.close()
 
@@ -111,6 +129,7 @@ class SqliteMetadataStore:
 
     # -- categories ----------------------------------------------------------------
 
+    @_locked
     def ensure_category(self, slug: str, description: Optional[str] = None) -> bool:
         """Register a category if missing. Returns True when it was created."""
         slug = normalize_slug(slug)
@@ -120,6 +139,7 @@ class SqliteMetadataStore:
             )
         return cur.rowcount > 0
 
+    @_locked
     def seed_categories_from_file(self, path: Path) -> int:
         """Register categories listed in a JSON file; existing ones are untouched."""
         path = Path(path)
@@ -132,12 +152,14 @@ class SqliteMetadataStore:
                 created += 1
         return created
 
+    @_locked
     def list_categories(self) -> List[Dict[str, Optional[str]]]:
         rows = self._conn.execute("SELECT slug, description FROM categories ORDER BY slug").fetchall()
         return [{"slug": r["slug"], "description": r["description"]} for r in rows]
 
     # -- documents -----------------------------------------------------------------
 
+    @_locked
     def upsert_document(self, doc: DocumentRecord) -> None:
         values = {col: getattr(doc, col) for col in _DOC_COLUMNS}
         placeholders = ", ".join(f":{c}" for c in _DOC_COLUMNS)
@@ -154,22 +176,26 @@ class SqliteMetadataStore:
                 [(doc.document_id, t) for t in sorted(set(doc.topics))],
             )
 
+    @_locked
     def get_document(self, document_id: str) -> Optional[DocumentRecord]:
         row = self._conn.execute(f"{_SELECT_DOCS} WHERE d.document_id = ?", (document_id,)).fetchone()
         return _to_record(row) if row else None
 
+    @_locked
     def find_by_hash(self, file_hash: str) -> Optional[DocumentRecord]:
         row = self._conn.execute(
             f"{_SELECT_DOCS} WHERE d.file_hash = ? ORDER BY d.document_id LIMIT 1", (file_hash,)
         ).fetchone()
         return _to_record(row) if row else None
 
+    @_locked
     def find_by_path(self, file_path: str) -> List[DocumentRecord]:
         rows = self._conn.execute(
             f"{_SELECT_DOCS} WHERE d.file_path = ? ORDER BY d.document_id", (file_path,)
         ).fetchall()
         return [_to_record(r) for r in rows]
 
+    @_locked
     def list_documents(
         self,
         *,
@@ -198,6 +224,7 @@ class SqliteMetadataStore:
         sql += " ORDER BY d.title COLLATE NOCASE, d.document_id"
         return [_to_record(r) for r in self._conn.execute(sql, params).fetchall()]
 
+    @_locked
     def remove_document(self, document_id: str) -> bool:
         with self._conn:
             self._conn.execute("DELETE FROM ingestion_errors WHERE document_id = ?", (document_id,))
@@ -206,6 +233,7 @@ class SqliteMetadataStore:
 
     # -- errors --------------------------------------------------------------------
 
+    @_locked
     def record_error(
         self,
         stage: str,
@@ -222,6 +250,7 @@ class SqliteMetadataStore:
                 (document_id, source_uri, stage, message[:_MAX_ERROR_LEN], utc_now_iso()),
             )
 
+    @_locked
     def list_errors(self, document_id: Optional[str] = None) -> List[Dict[str, Any]]:
         if document_id is None:
             rows = self._conn.execute("SELECT * FROM ingestion_errors ORDER BY id").fetchall()
@@ -231,12 +260,14 @@ class SqliteMetadataStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    @_locked
     def clear_errors(self, document_id: str) -> None:
         with self._conn:
             self._conn.execute("DELETE FROM ingestion_errors WHERE document_id = ?", (document_id,))
 
     # -- statistics ----------------------------------------------------------------
 
+    @_locked
     def stats(self) -> Dict[str, Any]:
         c = self._conn
         totals = c.execute(

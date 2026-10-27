@@ -45,20 +45,20 @@ Depends on: Stage 1. Requirements: R2.1–R2.4.
 - [x] 2.5 Document cosine distance and calibrate the threshold with a synthetic PT/EN corpus and one real book (`scripts/calibrate_retrieval.py`); default 0.45
 - [x] 2.6 Tests: empty database, no results, filters, incompatible model, embeddings unavailable, page references (plus 15 opt-in real-Ollama tests, run in the VM)
 - [x] 2.7 Update README, run tests, report
-- [ ] 2.8 **User approval**
+- [x] 2.8 **User approval** (given by the user after reviewing PR #5)
 
 ## Stage 3: RAG and FastAPI
 
 Depends on: Stage 2. Requirements: R3.1–R3.3.
 
-- [ ] 3.1 Confirm the `qwen2.5:3b` download (~1.9 GB) with the user
-- [ ] 3.2 Ollama `ChatClient` and a fake one for tests
-- [ ] 3.3 Context building with budget and a prompt with anti-hallucination rules
-- [ ] 3.4 `RagService`: sources from metadata, insufficient-context fallback, citation validation
-- [ ] 3.5 API: `GET /health`, `POST /search`, `POST /chat`, `POST /documents/ingest`, `GET /documents`, `GET /documents/{id}`, `DELETE /documents/{id}`
-- [ ] 3.6 Administrative token, path restriction, input limits, timeouts, error mapping, logs without content
-- [ ] 3.7 Tests: Ollama unavailable, missing model, empty context, real sources, missing token, path traversal, input above the limit
-- [ ] 3.8 Update README, run tests, report
+- [x] 3.1 Confirm the `qwen2.5:3b` download (~1.9 GB) with the user (confirmed; installed in the VM)
+- [x] 3.2 Ollama `ChatClient` and a fake one for tests
+- [x] 3.3 Context building with budget and a prompt with anti-hallucination rules (prompt chosen by measurement)
+- [x] 3.4 `RagService`: sources from metadata, insufficient-context fallback, citation validation, citation grounding, identifier check
+- [x] 3.5 API: `GET /health`, `POST /search`, `POST /chat`, `POST /documents/ingest`, `GET /documents`, `GET /documents/{id}`, `DELETE /documents/{id}`
+- [x] 3.6 Administrative token, path restriction, input limits, timeouts, error mapping, logs without content
+- [x] 3.7 Tests: Ollama unavailable, missing model, empty context, real sources, missing token, path traversal, input above the limit (plus 4 opt-in real-model RAG tests)
+- [x] 3.8 Update README, run tests, report
 - [ ] 3.9 **User approval**
 
 ## Stage 4: Official documentation from the web

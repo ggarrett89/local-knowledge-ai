@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import List, Protocol, Sequence
 
+from app.core.models import ChatMessage
+
 
 class EmbeddingClient(Protocol):
     """Produces embeddings. Indexing and querying must use the same model."""
@@ -19,4 +21,15 @@ class EmbeddingClient(Protocol):
 
     def embed_query(self, text: str) -> List[float]:
         """Embed a search question."""
+        ...
+
+
+class ChatClient(Protocol):
+    """Generates text from a conversation. Swappable without touching RAG logic."""
+
+    @property
+    def model(self) -> str: ...
+
+    def complete(self, messages: Sequence[ChatMessage]) -> str:
+        """Return the assistant's reply text."""
         ...

@@ -139,3 +139,34 @@ def test_invalid_retrieval_settings_are_rejected(monkeypatch, name, value):
     monkeypatch.setenv(name, value)
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_chat_and_api_defaults():
+    s = Settings(_env_file=None)
+    assert (s.chat_timeout_seconds, s.chat_num_ctx, s.chat_temperature, s.chat_max_tokens) == (300.0, 4096, 0.1, 600)
+    assert s.rag_context_chars == 6000 and s.api_max_body_bytes == 65536
+    assert s.api_host == "127.0.0.1" and s.admin_token is None
+
+
+@pytest.mark.parametrize("name,value", [
+    ("LKA_CHAT_TIMEOUT_SECONDS", "0"),
+    ("LKA_CHAT_NUM_CTX", "100"),
+    ("LKA_CHAT_TEMPERATURE", "3"),
+    ("LKA_CHAT_MAX_TOKENS", "1"),
+    ("LKA_RAG_CONTEXT_CHARS", "100"),
+    ("LKA_API_MAX_BODY_BYTES", "10"),
+])
+def test_invalid_chat_settings_are_rejected(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_admin_token_must_be_long_enough_and_empty_means_disabled(monkeypatch):
+    monkeypatch.setenv("LKA_ADMIN_TOKEN", "short")
+    with pytest.raises(ValidationError, match="at least 16"):
+        Settings(_env_file=None)
+    monkeypatch.setenv("LKA_ADMIN_TOKEN", "")
+    assert Settings(_env_file=None).admin_token is None
+    monkeypatch.setenv("LKA_ADMIN_TOKEN", "a-long-enough-token-1")
+    assert Settings(_env_file=None).admin_token.get_secret_value() == "a-long-enough-token-1"

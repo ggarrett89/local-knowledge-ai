@@ -200,12 +200,17 @@ class IngestionService:
         topics: Optional[Sequence[str]] = None,
         *,
         force: bool = False,
+        confine_to_root: bool = False,
     ) -> BatchSummary:
-        """Index every supported file below ``root`` (recursive), one at a time."""
+        """Index every supported file below ``root`` (recursive), one at a time.
+
+        With ``confine_to_root`` a file that is a symlink pointing outside ``root`` is skipped
+        (the API uses this so a link cannot make it read files outside the documents directory).
+        """
         root = Path(root).expanduser().resolve()
         if not root.is_dir():
             raise InvalidDocument("not a directory")
-        files = self._discover(root)
+        files = self._discover(root, confine=confine_to_root)
         summary = BatchSummary()
         for position, file in enumerate(files):
             try:
@@ -253,13 +258,18 @@ class IngestionService:
 
     # -- internals -----------------------------------------------------------------
 
-    def _discover(self, root: Path) -> List[Path]:
+    def _discover(self, root: Path, *, confine: bool = False) -> List[Path]:
         found: List[Path] = []
         for directory, dirnames, filenames in os.walk(root, followlinks=False):
             dirnames.sort()
             for name in sorted(filenames):
-                if Path(name).suffix.lower() in self._extractors:
-                    found.append(Path(directory) / name)
+                if Path(name).suffix.lower() not in self._extractors:
+                    continue
+                path = Path(directory) / name
+                if confine and root != path.resolve() and root not in path.resolve().parents:
+                    logger.warning("skipped a file whose real path is outside the folder")
+                    continue
+                found.append(path)
         return found
 
     def _index(
