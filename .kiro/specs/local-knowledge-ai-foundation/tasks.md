@@ -45,7 +45,7 @@ Depends on: Stage 1. Requirements: R2.1–R2.4.
 - [x] 2.5 Document cosine distance and calibrate the threshold with a synthetic PT/EN corpus and one real book (`scripts/calibrate_retrieval.py`); default 0.45
 - [x] 2.6 Tests: empty database, no results, filters, incompatible model, embeddings unavailable, page references (plus 15 opt-in real-Ollama tests, run in the VM)
 - [x] 2.7 Update README, run tests, report
-- [ ] 2.8 **User approval**
+- [x] 2.8 **User approval** (given by the user after reviewing PR #5)
 
 ## Stage 3: RAG and FastAPI
 
