@@ -67,23 +67,35 @@ Official installer: see [ollama.com/download](https://ollama.com/download/linux)
 - Backup (planned, not yet exercised): no ingestion running, copy `LKA_DATA_DIR` (SQLite + Chroma) and note the embeddings model. A script is planned for a later stage.
 - Restore: copy back with the API stopped and check `stats`.
 
-## Appliance export (OVA)
-A snapshot of the VM after Stage 1 was exported with `VBoxManage export` while the VM was halted. The synthetic test index, sample files, APT lists and pip cache were removed first. Ollama and `nomic-embed-text` were kept.
+## Snapshot and appliance export (OVA)
 
-| Item | Value |
-|------|-------|
-| File | `~/vm-appliances/local-knowledge-ai-stage1-<date>.ova` (plus a `.sha256` file) |
-| Size | 3.2 GB (disks are stored as compressed stream-optimized VMDK; the virtual disk is 40 GB) |
-| Contents | Ubuntu 22.04, Python 3.10 with the project's virtualenv (`~/venv`), Ollama 0.40.11, `nomic-embed-text`. No project files, no index, no books |
-| Verified | the three SHA-1 entries of the OVA manifest match the archive contents; `VBoxManage import --dry-run` lists 4 CPUs and both disks |
-| **Not verified** | an actual import and boot of the appliance |
+### VirtualBox snapshot
+`stage3-two-books-20261027` was taken with the VM powered off, after Stage 3 was merged. It captures Ollama with `nomic-embed-text` and `qwen2.5:3b`, the Python environment with the API dependencies, and the index of two books (Ansible 944 chunks, CKA guide 412 chunks, 0 errors). List it with `vagrant snapshot list` or `VBoxManage snapshot local-knowledge-ai list`; roll back with `vagrant snapshot restore default stage3-two-books-20261027` (this discards changes made after the snapshot).
+
+### Appliance (OVA)
+Two exports exist in `~/vm-appliances/`, each with a `.sha256` file:
+
+| File | Size | State |
+|------|------|-------|
+| `local-knowledge-ai-stage1-20261026.ova` | 3.2 GB | Superseded. After Stage 1: Ollama and `nomic-embed-text` only. No index, no Stage 2/3 code dependencies, no `qwen2.5:3b`. Can be deleted |
+| `local-knowledge-ai-stage3-20261027.ova` | 4.9 GB | Current. Ubuntu 22.04, the Python 3.10 environment with the project dependencies (`~/venv`), Ollama 0.40.11, `nomic-embed-text`, `qwen2.5:3b`, **and the search index of your books** |
+
+**The Stage 3 appliance contains text chunks of your books. Keep it private; never share or publish it.** The first appliance deliberately had no data. If you need a shareable environment without the index, ask for a data-free export (it requires deleting the index inside the VM first, which is why it was not done here).
+
+Verified for the current file: all three SHA-1 entries of the OVA manifest match the archive contents; the OVF records disk capacities of 40 GB and 10 MB; `VBoxManage import --dry-run` lists 4 CPUs and both disks. **Not verified:** an actual import and boot of either appliance.
+
+How it was made, and a pitfall that was hit:
+1. APT lists, the APT and pip caches and the shell history were removed inside the VM, then it was halted.
+2. The snapshot was taken.
+3. **Exporting the VM directly gave an invalid OVA.** Once a snapshot exists, the VM runs on differencing disks, and `VBoxManage export` wrote a disk capacity of `0` into the OVF. That file was discarded. The working method is to clone the current state (`VBoxManage clonevm local-knowledge-ai --name lka-export-tmp --mode machine --register`), export the clone, then remove it (`VBoxManage unregistervm lka-export-tmp --delete`). A side effect: the disk files inside the archive are named `lka-export-tmp-disk001.vmdk`; the VM name inside is `local-knowledge-ai`.
+4. Free space was not zero-filled, on purpose: it would grow the dynamic disk by tens of GB on a host with limited space.
 
 Caveats:
-- The appliance contains the default Vagrant SSH key of the `ubuntu/jammy64` box. Keep it local; do not share or publish it.
-- The OVF also records the project's shared-folder path on the host and the two port forwards. On another machine, remove the shared folder from the imported VM settings, then get the code with `git clone` inside the VM instead.
-- Compression was not tuned: zero-filling free space was skipped on purpose, because it would have grown the dynamic disk by tens of GB on a host with limited free space.
+- The appliance contains the default Vagrant SSH key of the `ubuntu/jammy64` box.
+- The OVF records the project's shared-folder path on the host and the two port forwards. On another machine, remove the shared folder from the imported VM settings and get the code with `git clone` inside the VM.
+- The code in `/vagrant` is not inside the appliance; only the environment is.
 
-Import (not yet exercised): `VBoxManage import local-knowledge-ai-stage1-<date>.ova`. Restore a backup of `LKA_DATA_DIR` afterwards if you have one.
+Import (not yet exercised): `VBoxManage import local-knowledge-ai-stage3-20261027.ova`.
 
 ## Expected problems
 | Symptom | Likely cause | Action |
