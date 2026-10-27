@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol, Sequence
 
-from app.core.models import Chunk, DocumentRecord
+from app.core.models import Chunk, DocumentRecord, SearchHit
 
 
 class MetadataStore(Protocol):
@@ -39,6 +39,9 @@ class MetadataStore(Protocol):
 
 class VectorStore(Protocol):
     def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]) -> None: ...
+    def query(
+        self, vector: Sequence[float], k: int, document_ids: Optional[Sequence[str]] = None
+    ) -> List[SearchHit]: ...
     def delete_document(self, document_id: str) -> int: ...
     def prune_document(self, document_id: str, keep_count: int) -> int: ...
     def count(self) -> int: ...
