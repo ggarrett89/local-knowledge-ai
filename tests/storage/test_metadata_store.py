@@ -156,3 +156,33 @@ def test_stats(store):
 def test_stats_on_empty_store(store):
     stats = store.stats()
     assert stats["documents"] == 0 and stats["chunks"] == 0 and stats["by_status"] == {}
+
+
+def test_store_can_be_used_from_several_threads(tmp_path):
+    """The API serves requests from a thread pool: one connection, guarded by a lock."""
+    import threading
+
+    store = SqliteMetadataStore(tmp_path / "threads.db")
+    errors = []
+
+    def worker(n):
+        try:
+            for i in range(25):
+                store.upsert_document(doc(f"pdf-{n}-{i}", topics=["t"]))
+                assert store.get_document(f"pdf-{n}-{i}") is not None
+                store.list_documents(topics=["t"])
+                store.record_error("x", "m", document_id=f"pdf-{n}-{i}")
+        except BaseException as exc:  # noqa: BLE001 - report any failure from the thread
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(n,)) for n in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    try:
+        assert errors == []
+        assert len(store.list_documents()) == 150
+        assert len(store.list_errors()) == 150
+    finally:
+        store.close()
