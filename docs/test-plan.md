@@ -66,6 +66,6 @@ Mutation check done once by hand: disabling the cleanup of partial chunks, and d
 - Manual CLI scenarios (import, unchanged, identity mismatch, missing model, Ollama stopped, retry, reindex, remove) are recorded in the README with their output. They are not automated against a real Ollama.
 
 **Not covered / not run**
-- Ingestion with a real book: only synthetic PDFs were used.
+- Ingestion was exercised with one real text-based book (473 pages) and verified by hand against the PDF (README "One real book"); this is not automated, and no scanned, multi-column or heavily code-based book has been tried.
 - Time, memory and disk were measured once on synthetic text (README "Measured results"); the systematic benchmark is Stage 7.
 - Retrieval quality: no search exists yet (Stage 2).

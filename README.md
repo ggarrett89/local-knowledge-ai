@@ -174,6 +174,24 @@ Measured in the VM (Ubuntu 22.04, Python 3.10.12, 4 CPUs, no GPU, Ollama 0.40.11
 
 The measurement scripts are in `scripts/` (`probe_embedding_context.py`, `make_sample_pdf.py`) so the numbers can be reproduced.
 
+#### One real book
+One real, text-based technical book (473 pages, 15 MB, not encrypted) was then imported in the VM with `add` (category `iac-automation`, one topic), run in the background:
+
+| Measurement | Result |
+|-------------|--------|
+| Result | `[indexed]`, 944 chunks, exit code 0, `list`/`stats` consistent (944 chunks stored, 0 errors) |
+| Time | 818 s (13.6 min): ~0.87 s per chunk, ~1.7 s per page |
+| Memory | Python peak RSS 191 MB; VM RAM about 600 MB in use |
+| Index size | 14 MB of vectors plus 64 KB of metadata (~15 KB per chunk) |
+| Chunk sizes | 451 to 1,199 characters, median 1,025; none above the 1,200 limit |
+
+Checked against the source PDF afterwards (read-only script, not kept in the repository):
+- Chunk indexes are contiguous, every chunk has `page_start`/`page_end` within 1..473, pages never go backwards, and all 473 pages are covered by at least one chunk.
+- No replacement characters (U+FFFD) in the text; 0.3% of characters are non-ASCII.
+- Page references: for 60 randomly sampled chunks, a 50-character excerpt from the middle of the chunk was searched on the claimed pages. 58 were found on a single page. The other 2 span a page boundary, and for both the whole chunk text lies inside the two claimed pages. So the page references were correct in all 60 samples.
+
+This is one book of one kind (clean text layer). Books with complex layouts, multi-column text, code listings or scanned pages may behave differently. Search quality is still unmeasured because search does not exist yet.
+
 ## Backup and restore (planned)
 Not yet exercised. The state lives entirely in `LKA_DATA_DIR` (SQLite file plus the Chroma directory), so a backup is a copy of that directory while no ingestion is running. A script and a tested restore procedure are planned for a later stage.
 
@@ -195,8 +213,8 @@ See [`docs/test-plan.md`](docs/test-plan.md). Default: `pytest` (no network, no 
 
 ## Known limitations
 - No search, RAG or API yet (Stages 2–3).
-- Measurements used synthetic text, one document at a time, on CPU only. Retrieval quality is not measured yet (no search exists).
-- Embedding is slow on CPU (~1 s per chunk): a 300-page book is roughly 15–20 minutes by extrapolation, not measured on a real book.
+- Measurements used synthetic text plus one real book, one document at a time, on CPU only. Retrieval quality is not measured yet (no search exists).
+- Embedding is slow on CPU (~0.9 s per chunk): the real 473-page book took 13.6 minutes.
 - Chunk sizes are in characters; numeric- or code-heavy text uses more tokens per character, so do not raise `LKA_CHUNK_SIZE` above ~2,000 without re-running `scripts/probe_embedding_context.py`.
 - PDFs: password-protected files are rejected; scanned PDFs are `no_text` (no OCR). A truncated PDF may be repaired by PyMuPDF and indexed with part of its text missing, without an error.
 - Removing documents or switching the embeddings model requires the steps above; there is no bulk "reindex all" yet.

@@ -63,4 +63,13 @@ VM: Ubuntu 22.04, Python 3.10.12, 4 CPUs, 8 GB, no GPU, Ollama 0.40.11, `nomic-e
 | Python virtualenv in the VM | 574 MB |
 | Bare VM on the host | ~2.5 GB right after `vagrant up` |
 
+### One real book (473 pages, 15 MB PDF)
+| Measurement | Result |
+|-------------|--------|
+| Chunks | 944 (median 1,025 characters) |
+| Embedding time | 818 s (~0.87 s per chunk, ~1.7 s per page) |
+| Python peak RSS | 191 MB |
+| VM RAM in use during the run | ~600 MB |
+| Index | 14 MB (~15 KB per chunk) + 64 KB SQLite |
+
 The 4–5.5 GB RAM peak in the table above includes the 3B chat model, which is not installed yet; ingestion alone used well under 1 GB. The chat model's real footprint will be measured in Stage 3.
