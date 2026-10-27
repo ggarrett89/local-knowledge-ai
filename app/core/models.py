@@ -53,6 +53,11 @@ class Chunk(BaseModel):
     provenance: Provenance
 
 
+class ChatMessage(BaseModel):
+    role: Literal["system", "user", "assistant"]
+    content: str
+
+
 class SearchFilters(BaseModel):
     """Restrict a search. All given filters must match (AND); topics must all be present."""
 

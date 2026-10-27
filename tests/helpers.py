@@ -124,3 +124,36 @@ class BagOfWordsEmbedder:
 
     def close(self) -> None:
         pass
+
+
+class FakeChat:
+    """Scripted chat client. ``reply`` is a string or a callable(messages) -> string."""
+
+    def __init__(self, reply="Answer [1].", *, error: Optional[Exception] = None, model: str = "fake-chat") -> None:
+        self.reply = reply
+        self.error = error
+        self.model = model
+        self.calls: List[List] = []
+
+    def complete(self, messages):
+        self.calls.append(list(messages))
+        if self.error is not None:
+            raise self.error
+        return self.reply(messages) if callable(self.reply) else self.reply
+
+    def close(self) -> None:
+        pass
+
+
+class FakeCatalog:
+    def __init__(self, installed=("nomic-embed-text:latest", "fake-chat:latest"), *, error: Optional[Exception] = None):
+        self.installed = list(installed)
+        self.error = error
+
+    def installed_models(self) -> List[str]:
+        if self.error is not None:
+            raise self.error
+        return list(self.installed)
+
+    def close(self) -> None:
+        pass
