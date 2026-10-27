@@ -116,7 +116,7 @@ def test_retrieval_defaults():
     s = Settings(_env_file=None)
     assert (s.retrieval_k, s.retrieval_max_k, s.retrieval_overfetch) == (5, 50, 4)
     assert s.dedupe_adjacent is True and s.max_query_chars == 1000
-    assert 0 < s.relevance_max_distance <= 2.0
+    assert s.relevance_max_distance == 0.45
 
 
 def test_retrieval_settings_from_env(monkeypatch):

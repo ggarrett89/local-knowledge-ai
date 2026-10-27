@@ -19,7 +19,7 @@ QUESTION = "Kafka partitions consumers committed offsets"
 @pytest.fixture
 def settings(tmp_path):
     return Settings(_env_file=None, data_dir=tmp_path / "data", chunk_size=400, chunk_overlap=50,
-                    embed_batch_size=8, retrieval_k=3)
+                    embed_batch_size=8, retrieval_k=3, relevance_max_distance=2.0)
 
 
 @pytest.fixture

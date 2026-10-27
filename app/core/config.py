@@ -52,8 +52,9 @@ class Settings(BaseSettings):
     retrieval_k: int = Field(default=5, ge=1)
     retrieval_max_k: int = Field(default=50, ge=1)
     retrieval_overfetch: int = Field(default=4, ge=1, le=20)
-    # Hits farther than this are dropped. 2.0 keeps everything; calibrated value: see README.
-    relevance_max_distance: float = Field(default=2.0, gt=0, le=2.0)
+    # Hits farther than this are dropped (2.0 keeps everything). 0.45 comes from measurements with
+    # nomic-embed-text on one book plus a synthetic corpus: see README "Distances and the relevance threshold".
+    relevance_max_distance: float = Field(default=0.45, gt=0, le=2.0)
     dedupe_adjacent: bool = True
     max_query_chars: int = Field(default=1000, ge=10, le=4000)
 
